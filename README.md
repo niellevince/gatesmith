@@ -9,6 +9,8 @@ A lightweight and flexible role-based access control system implemented in TypeS
 - Support for ownership-based access control (`create:own`, `update:own`, etc.)
 - Dynamic permission checking with ID comparison
 - Flexible permission structure that works with any action types
+- User-friendly role display names for UI integration
+- Wildcard support for granting all permissions on a resource
 
 ## Installation
 
@@ -50,20 +52,40 @@ npm run dev
 ### Define Roles & Permissions
 
 ```typescript
-import { RBAC, RolesConfig } from "./rbac";
+import { RBAC, RolesConfig, WILDCARD_PERMISSION } from "./rbac";
 
-// Define role-based permissions
+// Define role-based permissions with display names
 const roles: RolesConfig = {
     admin: {
-        posts: ["create", "update", "read", "delete"],
-        users: ["create", "update", "read", "delete"],
+        name: "Administrator",
+        permissions: {
+            posts: ["create", "update", "read", "delete"],
+            users: ["create", "update", "read", "delete"],
+        },
     },
-    editor: {
-        posts: ["create", "update", "read", "delete:own"],
-        comments: ["create", "update:own", "read", "delete:own"],
+    superadmin: {
+        name: "Super Administrator",
+        permissions: {
+            // Wildcard permission for all actions on system settings
+            system: [WILDCARD_PERMISSION],
+            // Specific permissions for other resources
+            posts: ["create", "update", "read", "delete"],
+        },
+    },
+    moderator: {
+        name: "Content Moderator",
+        permissions: {
+            // Wildcard for all comment actions
+            comments: [WILDCARD_PERMISSION],
+            // Limited permissions on posts
+            posts: ["read", "update"],
+        },
     },
     user: {
-        posts: ["create:own", "update:own", "read", "delete:own"],
+        name: "Regular User",
+        permissions: {
+            posts: ["create:own", "update:own", "read", "delete:own"],
+        },
     },
 };
 
@@ -78,6 +100,21 @@ const rbac = new RBAC(roles);
 rbac.can("admin", "posts", "delete"); // true
 rbac.can("user", "posts", "read"); // true
 rbac.can("user", "posts", "update"); // false - user can only update:own
+```
+
+### Wildcard Permissions
+
+```typescript
+// Check for wildcard permissions
+rbac.hasWildcardPermission("superadmin", "system"); // true
+
+// Wildcard allows any action, even undefined ones
+rbac.can("superadmin", "system", "configure-backup"); // true
+rbac.can("moderator", "comments", "flag-inappropriate"); // true
+
+// Regular permissions still work normally
+rbac.can("moderator", "posts", "read"); // true
+rbac.can("moderator", "posts", "delete"); // false - not in permissions list
 ```
 
 ### Ownership-Based Permissions
@@ -98,11 +135,33 @@ rbac.can("user", "posts", `update:own|${userId},${otherPostId}`); // false
 rbac.can("admin", "posts", "update"); // true
 ```
 
-### Get Available Roles
+### Role Management
 
 ```typescript
 // Get a list of all roles
-rbac.getRoles(); // ["admin", "editor", "user"]
+rbac.getRoles(); // ["admin", "superadmin", "moderator", "editor", "user"]
+
+// Get display names for roles (for UI elements)
+rbac.getName("admin"); // "Administrator"
+rbac.getName("superadmin"); // "Super Administrator"
+rbac.getName("user"); // "Regular User"
+
+// Display names for UI
+const availableRoles = rbac.getRoles();
+availableRoles.forEach((role) => {
+    console.log(`${role}: ${rbac.getName(role)}`);
+});
+```
+
+### UI-Friendly Permission Checks
+
+```typescript
+// User-friendly permission checks for UI messages
+const roleName = rbac.getName("editor");
+const canEdit = rbac.can("editor", "posts", `update:own|${userId},${postId}`);
+
+console.log(`${roleName} ${canEdit ? "can" : "cannot"} edit this post.`);
+// Output: "Content Editor can edit this post." (if userId matches postId)
 ```
 
 ## License
