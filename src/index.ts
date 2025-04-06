@@ -2,7 +2,7 @@
  * Custom RBAC (Role-Based Access Control) System with Ownership
  */
 
-import { RBAC, RolesConfig, WILDCARD_PERMISSION } from "./rbac";
+import { RBAC, RolesConfig, WILDCARD_PERMISSION, own, group } from "./rbac";
 
 // Define roles configuration with display names and wildcards
 const roles: RolesConfig = {
@@ -12,6 +12,7 @@ const roles: RolesConfig = {
             posts: ["create", "update", "read", "delete"],
             users: ["create", "update", "read", "delete"],
             comments: ["create", "update", "read", "delete"],
+            "group-chat": ["create", "update", "read", "delete", "moderate"],
         },
     },
     superadmin: {
@@ -23,13 +24,15 @@ const roles: RolesConfig = {
             posts: [WILDCARD_PERMISSION],
             users: [WILDCARD_PERMISSION],
             comments: [WILDCARD_PERMISSION],
+            "group-chat": [WILDCARD_PERMISSION],
         },
     },
     editor: {
         name: "Content Editor",
         permissions: {
-            posts: ["create", "update", "read", "delete:own"],
-            comments: ["create", "update:own", "read", "delete:own"],
+            posts: ["create:own", "update:own", "read", "delete:own"],
+            comments: ["create:own", "update:own", "read", "delete:own"],
+            "group-chat": ["read", "update:group"],
         },
     },
     moderator: {
@@ -39,6 +42,8 @@ const roles: RolesConfig = {
             comments: [WILDCARD_PERMISSION],
             // Limited permissions on posts
             posts: ["read", "update"],
+            // Group chat moderation
+            "group-chat": ["read", "moderate"],
         },
     },
     user: {
@@ -46,6 +51,7 @@ const roles: RolesConfig = {
         permissions: {
             posts: ["create:own", "update:own", "read", "delete:own"],
             comments: ["create:own", "update:own", "read", "delete:own"],
+            "group-chat": ["read", "update:group"],
         },
     },
     guest: {
@@ -53,6 +59,7 @@ const roles: RolesConfig = {
         permissions: {
             posts: ["read"],
             comments: ["read"],
+            "group-chat": ["read"],
         },
     },
 };
@@ -73,140 +80,99 @@ function logPermissionCheck(
 const rbac = new RBAC(roles);
 
 // Example usage
-function main() {
-    console.log("=== RBAC System Demonstration ===");
-    console.log("RBAC instance created with the following roles:");
+console.log("RBAC Demonstration:");
+console.log("------------------");
 
-    // Get all roles with their display names
-    const availableRoles = rbac.getRoles();
-    console.log("Available roles:");
-    availableRoles.forEach((role) => {
-        console.log(`- ${role}: "${rbac.getName(role)}"`);
-    });
+// Basic permission tests
+console.log("\n1. Basic Permissions:");
+console.log(
+    "Administrator can delete posts:",
+    rbac.can("admin", "posts", "delete"),
+);
+console.log("Regular User can read posts:", rbac.can("user", "posts", "read"));
 
-    console.log("\n=== Basic Permission Tests ===");
+// Ownership tests with the new helper functions
+console.log("\n2. Ownership Tests:");
+const user1Id = "user1";
+const user2Id = "user2";
+const adminId = "admin1";
 
-    // Simple permission checks
-    logPermissionCheck(
-        `${rbac.getName("admin")} can delete posts`,
-        rbac.can("admin", "posts", "delete"),
-        true,
-    );
+// User can update their own posts
+console.log(
+    "User can update their own post:",
+    rbac.can("user", "posts", own("update", user1Id, user1Id)),
+);
 
-    logPermissionCheck(
-        `${rbac.getName("user")} can read posts`,
-        rbac.can("user", "posts", "read"),
-        true,
-    );
+// User cannot update others' posts
+console.log(
+    "User cannot update another user's post:",
+    rbac.can("user", "posts", own("update", user1Id, user2Id)),
+);
 
-    // Ownership checks
-    const userId = "123";
-    const postOwnerId = "123"; // Same as user id
-    const otherPostOwnerId = "456"; // Different from user id
+// Admin can update any post
+console.log("Admin can update any post:", rbac.can("admin", "posts", "update"));
 
-    console.log("\n=== Ownership Tests ===");
+// Editor can delete their own posts
+console.log(
+    "Editor can delete their own post:",
+    rbac.can("editor", "posts", own("delete", user1Id, user1Id)),
+);
 
-    logPermissionCheck(
-        `${rbac.getName("user")} can update their own post`,
-        rbac.can("user", "posts", `update:own|${userId},${postOwnerId}`),
-        true,
-    );
+// Group membership tests
+console.log("\n3. Group Membership Tests:");
+const groupMembers = ["user1", "user3", "user5"];
+const nonGroupMembers = ["user2", "user4"];
 
-    logPermissionCheck(
-        `${rbac.getName("user")} cannot update someone else's post`,
-        rbac.can("user", "posts", `update:own|${userId},${otherPostOwnerId}`),
-        false,
-    );
+// User in the group can update the group chat
+console.log(
+    "User can update group chat they're a member of:",
+    rbac.can("user", "group-chat", group("update", user1Id, groupMembers)),
+);
 
-    logPermissionCheck(
-        `${rbac.getName("admin")} can update any post (no ownership check)`,
-        rbac.can("admin", "posts", "update"),
-        true,
-    );
+// User not in the group cannot update
+console.log(
+    "User cannot update group chat they're not a member of:",
+    rbac.can("user", "group-chat", group("update", user2Id, groupMembers)),
+);
 
-    logPermissionCheck(
-        `${rbac.getName("editor")} can delete their own post`,
-        rbac.can("editor", "posts", `delete:own|${userId},${postOwnerId}`),
-        true,
-    );
+// Moderator can moderate any group chat
+console.log(
+    "Moderator can moderate any group chat:",
+    rbac.can("moderator", "group-chat", "moderate"),
+);
 
-    logPermissionCheck(
-        `${rbac.getName("editor")} cannot delete someone else's post`,
-        rbac.can("editor", "posts", `delete:own|${userId},${otherPostOwnerId}`),
-        false,
-    );
+// Wildcard permission tests
+console.log("\n4. Wildcard Permission Tests:");
+console.log(
+    "Super Admin has wildcard permission for system:",
+    rbac.hasWildcardPermission("superadmin", "system"),
+);
 
-    // Wildcard permission tests
-    console.log("\n=== Wildcard Permission Tests ===");
+console.log(
+    "Super Admin can do any action on users (even undefined actions):",
+    rbac.can("superadmin", "users", "some-undefined-action"),
+);
 
-    // Test superadmin with wildcard permissions
-    logPermissionCheck(
-        `${rbac.getName("superadmin")} has wildcard permission for system`,
-        rbac.hasWildcardPermission("superadmin", "system"),
-        true,
-    );
+console.log(
+    "Moderator has wildcard permission for comments:",
+    rbac.hasWildcardPermission("moderator", "comments"),
+);
 
-    logPermissionCheck(
-        `${rbac.getName("superadmin")} can perform unknown action on system due to wildcard`,
-        rbac.can("superadmin", "system", "configure-backup"),
-        true,
-    );
+// Role name tests
+console.log("\n5. Role Names:");
+console.log("'superadmin' display name:", rbac.getName("superadmin"));
+console.log("'moderator' display name:", rbac.getName("moderator"));
+console.log("'guest' display name:", rbac.getName("guest"));
+console.log(
+    "'manager' display name (undefined role):",
+    rbac.getName("manager"),
+);
 
-    logPermissionCheck(
-        `${rbac.getName("superadmin")} can perform any action on users due to wildcard`,
-        rbac.can("superadmin", "users", "ban"),
-        true,
-    );
-
-    // Test moderator with wildcard for comments
-    logPermissionCheck(
-        `${rbac.getName("moderator")} has wildcard permission for comments`,
-        rbac.hasWildcardPermission("moderator", "comments"),
-        true,
-    );
-
-    logPermissionCheck(
-        `${rbac.getName("moderator")} can perform unknown action on comments due to wildcard`,
-        rbac.can("moderator", "comments", "flag-inappropriate"),
-        true,
-    );
-
-    logPermissionCheck(
-        `${rbac.getName("moderator")} can perform only specific actions on posts (no wildcard)`,
-        rbac.can("moderator", "posts", "delete"),
-        false,
-    );
-
-    // Additional test cases
-    console.log("\n=== Edge Cases ===");
-
-    logPermissionCheck(
-        "Non-existent role cannot access anything",
-        rbac.can("unknown-role", "posts", "read"),
-        false,
-    );
-
-    logPermissionCheck(
-        `${rbac.getName("guest")} can read posts`,
-        rbac.can("guest", "posts", "read"),
-        true,
-    );
-
-    logPermissionCheck(
-        `${rbac.getName("guest")} cannot update posts`,
-        rbac.can("guest", "posts", "update"),
-        false,
-    );
-
-    // Test getName fallback for non-existent role
-    console.log("\n=== Role Name Tests ===");
-    console.log(`Role name for 'admin': "${rbac.getName("admin")}"`);
-    console.log(`Role name for 'superadmin': "${rbac.getName("superadmin")}"`);
-    console.log(`Role name for 'moderator': "${rbac.getName("moderator")}"`);
-    console.log(`Role name for 'guest': "${rbac.getName("guest")}"`);
-    console.log(
-        `Role name for non-existent role 'manager': "${rbac.getName("manager")}"`,
-    );
-}
-
-main();
+// Edge case tests
+console.log("\n6. Edge Cases:");
+console.log(
+    "Check permission for nonexistent role:",
+    rbac.can("nonexistent", "posts", "read"),
+);
+console.log("Guest can read posts:", rbac.can("guest", "posts", "read"));
+console.log("Guest cannot update posts:", rbac.can("guest", "posts", "update"));

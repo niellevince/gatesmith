@@ -9,16 +9,37 @@ export type Resource = string; // e.g. 'posts', 'users', etc.
 // Special permission constants
 export const WILDCARD_PERMISSION = "*";
 
+export type PermissionAction = string;
+
+// Helper functions for permission checks with immediate evaluation
+export function own(
+    action: string,
+    userId: string,
+    resourceOwnerId: string,
+): string {
+    const isOwner = userId === resourceOwnerId;
+    return `${action}:own|${isOwner}`;
+}
+
+export function group(
+    action: string,
+    userId: string,
+    groupMemberIds: string[],
+): string {
+    const isMember = groupMemberIds.includes(userId);
+    return `${action}:group|${isMember}`;
+}
+
 // Role definitions can be nested (by resource) or flat
 export type ResourcePermissions = Record<Resource, Permission[]>;
 export type RoleDefinition = ResourcePermissions | Permission[];
 
 export interface RoleConfig {
     name?: string; // Display name for the role
-    permissions: RoleDefinition;
+    permissions: ResourcePermissions;
 }
 
-export type RolesConfig = Record<string, RoleDefinition | RoleConfig>;
+export type RolesConfig = Record<string, RoleConfig>;
 
 /**
  * RBAC Class for role-based permission management
@@ -50,43 +71,41 @@ export class RBAC {
             return roleName;
         }
 
-        // If it's a role config with a name property
-        if (
-            typeof roleConfig === "object" &&
-            !Array.isArray(roleConfig) &&
-            "name" in roleConfig
-        ) {
-            return (roleConfig.name as string) || roleName;
-        }
-
-        // Otherwise just return the role name
-        return roleName;
+        // Return name if set, otherwise the role name
+        return roleConfig.name || roleName;
     }
 
     /**
      * Checks if a role can perform an action on a resource
-     * Simplified syntax: can('user', 'posts', 'update:own|id1,id2')
+     * Simplified syntax: can('user', 'posts', 'update')
+     * With helpers: can('user', 'posts', own('update', userId, resourceOwnerId))
      *
      * @param roleName The name of the role
      * @param resource The resource to check
-     * @param permission The permission string with optional ownership and IDs
+     * @param permission The permission string with optional ownership/group results
      * @returns boolean indicating if the role has the permission
      */
     can(roleName: string, resource: Resource, permission: Permission): boolean {
         // Parse the permission string
-        const { action, ownership, ids } = this.parsePermission(permission);
+        const { action, ownership, comparisonResult } =
+            this.parsePermission(permission);
 
         // Get permissions for the role on the resource
         const permissions = this.getRolePermissions(roleName, resource);
 
         // Check for wildcard permission first (optimization)
         if (permissions.includes(WILDCARD_PERMISSION)) {
-            // Even with wildcard, we still need to check ownership
+            // If it's a simple wildcard without ownership check, return true immediately
             if (!ownership) {
                 return true;
             }
 
-            // For ownership checks, continue to ownership validation below
+            // For ownership/group checks, we need to check the comparison result
+            if (comparisonResult === "true") {
+                return true;
+            } else if (comparisonResult === "false") {
+                return false;
+            }
         }
 
         // Check if any of the role's permissions match the required action
@@ -129,17 +148,9 @@ export class RBAC {
             return false;
         }
 
-        // If no ownership check needed, return true
-        if (!ownership || ownership !== "own" || !ids || ids.length === 0) {
-            return true;
-        }
-
-        // For ownership checks, when using 'own' with IDs
-        if (ids.length >= 2) {
-            const currentUserId = ids[0];
-            const resourceOwnerId = ids[1];
-
-            return currentUserId === resourceOwnerId;
+        // For pre-evaluated permissions (using helper functions), check the comparison result
+        if (ownership && comparisonResult !== undefined) {
+            return comparisonResult === "true";
         }
 
         return true;
@@ -158,31 +169,36 @@ export class RBAC {
 
     /**
      * Private method to parse a permission string into its components
-     * Format: 'action:ownership|id1,id2' or just 'action'
+     * Format: 'action:ownership|result' or just 'action'
      */
     private parsePermission(permission: string): {
         action: string;
         ownership?: string;
-        ids?: string[];
+        comparisonResult?: string;
     } {
-        // Check if permission has ownership context (contains a colon)
-        const [action, rest] = permission.split(":");
+        // Check if it's a complex permission with results (from helper functions)
+        if (permission.includes("|")) {
+            // Format: "action:ownership|result" (e.g., "update:own|true" or "update:group|false")
+            const [actionPart, resultPart] = permission.split("|");
 
-        if (!rest) {
-            return { action };
+            if (actionPart.includes(":")) {
+                const [action, ownership] = actionPart.split(":");
+                return { action, ownership, comparisonResult: resultPart };
+            }
+
+            // If no ownership part, return just the action and result
+            return { action: actionPart, comparisonResult: resultPart };
         }
 
-        // Check if permission has IDs for comparison (contains a pipe)
-        const [ownership, idsString] = rest.split("|");
-
-        if (!idsString) {
+        // Check if it's an ownership-qualified permission without result
+        if (permission.includes(":")) {
+            // Format: "action:ownership" (e.g., "update:own")
+            const [action, ownership] = permission.split(":");
             return { action, ownership };
         }
 
-        // Parse IDs
-        const ids = idsString.split(",").filter(Boolean);
-
-        return { action, ownership, ids };
+        // Simple permission (e.g., "read")
+        return { action: permission };
     }
 
     /**
@@ -199,21 +215,12 @@ export class RBAC {
 
         let roleDefinition = this.rolesConfig[roleName];
 
-        // If it's a role config with permissions property
-        if (
-            typeof roleDefinition === "object" &&
-            !Array.isArray(roleDefinition) &&
-            "permissions" in roleDefinition
-        ) {
-            roleDefinition = roleDefinition.permissions;
-        }
-
         // If no resource specified or the role definition is a flat array
         if (!resource || Array.isArray(roleDefinition)) {
             return Array.isArray(roleDefinition) ? roleDefinition : [];
         }
 
         // Get permissions for the specific resource
-        return (roleDefinition as ResourcePermissions)[resource] || [];
+        return roleDefinition.permissions[resource] || [];
     }
 }

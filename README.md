@@ -11,6 +11,7 @@ A lightweight and flexible role-based access control system implemented in TypeS
 - Flexible permission structure that works with any action types
 - User-friendly role display names for UI integration
 - Wildcard support for granting all permissions on a resource
+- Helper functions for immediate ownership and group membership checks
 
 ## Installation
 
@@ -45,6 +46,23 @@ Development mode with hot reloading:
 
 ```bash
 npm run dev
+```
+
+## Testing
+
+The project includes a comprehensive set of test cases demonstrating various aspects of the RBAC system:
+
+1. Basic permission checks
+2. Ownership-based permissions using helper functions
+3. Group membership checks
+4. Wildcard permissions
+5. Role name retrieval
+6. Edge cases
+
+To run the demonstration:
+
+```bash
+npm start
 ```
 
 ## Examples
@@ -85,6 +103,7 @@ const roles: RolesConfig = {
         name: "Regular User",
         permissions: {
             posts: ["create:own", "update:own", "read", "delete:own"],
+            "group-chat": ["read", "update:group"],
         },
     },
 };
@@ -102,6 +121,29 @@ rbac.can("user", "posts", "read"); // true
 rbac.can("user", "posts", "update"); // false - user can only update:own
 ```
 
+### Helper Functions for Ownership and Group Checks
+
+```typescript
+import { own, group } from "./rbac";
+
+// User IDs for checking
+const userId = "123";
+const postOwnerId = "123"; // Post owned by this user
+const otherPostId = "456"; // Post owned by someone else
+const groupMembers = ["123", "456", "789"]; // User is a member of this group
+
+// Check ownership (returns an evaluated permission string)
+rbac.can("user", "posts", own("update", userId, postOwnerId)); // true
+rbac.can("user", "posts", own("update", userId, otherPostId)); // false
+
+// Check group membership (returns an evaluated permission string)
+rbac.can("user", "group-chat", group("update", userId, groupMembers)); // true
+rbac.can("user", "group-chat", group("update", userId, ["456", "789"])); // false
+
+// Helper functions perform the comparison immediately
+// No need to manually compare IDs - the result is already included in the permission
+```
+
 ### Wildcard Permissions
 
 ```typescript
@@ -115,24 +157,6 @@ rbac.can("moderator", "comments", "flag-inappropriate"); // true
 // Regular permissions still work normally
 rbac.can("moderator", "posts", "read"); // true
 rbac.can("moderator", "posts", "delete"); // false - not in permissions list
-```
-
-### Ownership-Based Permissions
-
-```typescript
-// Check with ownership (user id and resource owner id)
-const userId = "123";
-const ownedPostId = "123"; // Post owned by the user
-const otherPostId = "456"; // Post owned by someone else
-
-// User can update their own posts
-rbac.can("user", "posts", `update:own|${userId},${ownedPostId}`); // true
-
-// User cannot update posts they don't own
-rbac.can("user", "posts", `update:own|${userId},${otherPostId}`); // false
-
-// Admin can update any post (no ownership restriction)
-rbac.can("admin", "posts", "update"); // true
 ```
 
 ### Role Management
@@ -153,15 +177,25 @@ availableRoles.forEach((role) => {
 });
 ```
 
-### UI-Friendly Permission Checks
+### How the Helper Functions Work
+
+The helper functions perform the ID comparison immediately and return a permission string with the result:
 
 ```typescript
-// User-friendly permission checks for UI messages
-const roleName = rbac.getName("editor");
-const canEdit = rbac.can("editor", "posts", `update:own|${userId},${postId}`);
+// These helper functions replace the previous string format approach
+// Old way:
+rbac.can("user", "posts", `update:own|${userId},${resourceId}`);
 
-console.log(`${roleName} ${canEdit ? "can" : "cannot"} edit this post.`);
-// Output: "Content Editor can edit this post." (if userId matches postId)
+// New way with helper functions:
+rbac.can("user", "posts", own("update", userId, resourceId));
+
+// The helper functions evaluate the comparison and return:
+// - 'update:own|true' if userId === resourceId
+// - 'update:own|false' if userId !== resourceId
+
+// Group membership checks work similarly:
+rbac.can("user", "chat", group("update", userId, memberIds));
+// Returns 'update:group|true' if userId is in memberIds, otherwise 'update:group|false'
 ```
 
 ## License
