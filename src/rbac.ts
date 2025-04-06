@@ -12,6 +12,17 @@ export const WILDCARD_PERMISSION = "*";
 export type PermissionAction = string;
 export type ValidatorFunction = () => boolean; // Custom validator function type
 
+// Result type for permission explanation
+export interface PermissionExplanation {
+    granted: boolean;
+    reason: string;
+    role: string;
+    resource: string;
+    action: string;
+    ownership?: string;
+    details?: string;
+}
+
 // Helper functions for permission checks with immediate evaluation
 export function own(
     action: string,
@@ -49,6 +60,7 @@ export type RoleDefinition = ResourcePermissions | Permission[];
 export interface RoleConfig {
     name?: string; // Display name for the role
     permissions: ResourcePermissions;
+    description?: string; // Optional description of the role
 }
 
 export type RolesConfig = Record<string, RoleConfig>;
@@ -61,6 +73,72 @@ export class RBAC {
 
     constructor(roles: RolesConfig) {
         this.rolesConfig = roles;
+    }
+
+    /**
+     * Updates the roles configuration at runtime
+     * @param newRoles New roles configuration or partial update
+     * @param merge Whether to merge with existing roles (default: true)
+     * @returns Updated RBAC instance (for method chaining)
+     */
+    updateRoles(newRoles: RolesConfig, merge: boolean = true): RBAC {
+        if (merge) {
+            // Merge new roles with existing ones
+            this.rolesConfig = {
+                ...this.rolesConfig,
+                ...newRoles,
+            };
+
+            // Deep merge permissions for roles that exist in both
+            for (const roleName in newRoles) {
+                if (
+                    this.rolesConfig[roleName] &&
+                    this.rolesConfig[roleName].permissions &&
+                    newRoles[roleName].permissions
+                ) {
+                    // Preserve existing role properties like name if not provided in new config
+                    if (
+                        !newRoles[roleName].name &&
+                        this.rolesConfig[roleName].name
+                    ) {
+                        newRoles[roleName].name =
+                            this.rolesConfig[roleName].name;
+                    }
+
+                    // Merge permissions for existing resources
+                    for (const resource in this.rolesConfig[roleName]
+                        .permissions) {
+                        if (newRoles[roleName].permissions[resource]) {
+                            // If resource exists in both, combine the permissions (avoiding duplicates)
+                            const existingPermissions =
+                                this.rolesConfig[roleName].permissions[
+                                    resource
+                                ];
+                            const newPermissions =
+                                newRoles[roleName].permissions[resource];
+
+                            newRoles[roleName].permissions[resource] = [
+                                ...new Set([
+                                    ...existingPermissions,
+                                    ...newPermissions,
+                                ]),
+                            ];
+                        } else {
+                            // Preserve existing resources not in the new config
+                            newRoles[roleName].permissions[resource] = [
+                                ...this.rolesConfig[roleName].permissions[
+                                    resource
+                                ],
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+
+        // Replace existing roles with new ones
+        this.rolesConfig = merge ? this.rolesConfig : newRoles;
+        return this;
     }
 
     /**
@@ -169,6 +247,163 @@ export class RBAC {
         }
 
         return true;
+    }
+
+    /**
+     * Explains why a permission check would pass or fail
+     * @param roleName The name of the role
+     * @param resource The resource to check
+     * @param permission The permission string with optional ownership/group/validation results
+     * @returns An explanation object with details about the permission decision
+     */
+    canExplain(
+        roleName: string,
+        resource: Resource,
+        permission: Permission,
+    ): PermissionExplanation {
+        // Check if the role exists
+        if (!this.rolesConfig[roleName]) {
+            return {
+                granted: false,
+                reason: "ROLE_NOT_FOUND",
+                role: roleName,
+                resource,
+                action: permission,
+                details: `Role "${roleName}" does not exist.`,
+            };
+        }
+
+        // Parse the permission string
+        const { action, ownership, comparisonResult } =
+            this.parsePermission(permission);
+
+        // Get permissions for the role on the resource
+        const permissions = this.getRolePermissions(roleName, resource);
+
+        // Check if the resource exists for this role
+        if (permissions.length === 0) {
+            return {
+                granted: false,
+                reason: "RESOURCE_NOT_ALLOWED",
+                role: roleName,
+                resource,
+                action,
+                ownership,
+                details: `Role "${this.getName(roleName)}" does not have access to resource "${resource}".`,
+            };
+        }
+
+        // Check for wildcard permission
+        if (permissions.includes(WILDCARD_PERMISSION)) {
+            // If it's a simple wildcard without ownership check, permission is granted
+            if (!ownership) {
+                return {
+                    granted: true,
+                    reason: "WILDCARD_PERMISSION",
+                    role: roleName,
+                    resource,
+                    action,
+                    details: `Role "${this.getName(roleName)}" has wildcard permission for resource "${resource}".`,
+                };
+            }
+
+            // For ownership checks with wildcard, check the comparison result
+            if (comparisonResult === "true") {
+                return {
+                    granted: true,
+                    reason: "WILDCARD_WITH_OWNERSHIP",
+                    role: roleName,
+                    resource,
+                    action,
+                    ownership,
+                    details: `Role "${this.getName(roleName)}" has wildcard permission for resource "${resource}" and ownership check passed.`,
+                };
+            } else if (comparisonResult === "false") {
+                return {
+                    granted: false,
+                    reason: "OWNERSHIP_CHECK_FAILED",
+                    role: roleName,
+                    resource,
+                    action,
+                    ownership,
+                    details: `Role "${this.getName(roleName)}" has wildcard permission for resource "${resource}", but the ${ownership} check failed.`,
+                };
+            }
+        }
+
+        // Check if the role has the specific permission
+        const matchingPermissions = permissions.filter((p) => {
+            const parsedP = this.parsePermission(p);
+
+            // Simple action match (without ownership)
+            if (parsedP.action === action && !parsedP.ownership && !ownership) {
+                return true;
+            }
+
+            // Exact match with ownership
+            if (parsedP.action === action && parsedP.ownership === ownership) {
+                return true;
+            }
+
+            // Match with broader permission (role has ownership but request doesn't need it)
+            if (parsedP.action === action && parsedP.ownership && !ownership) {
+                return true;
+            }
+
+            return false;
+        });
+
+        if (matchingPermissions.length === 0) {
+            return {
+                granted: false,
+                reason: "ACTION_NOT_ALLOWED",
+                role: roleName,
+                resource,
+                action,
+                ownership,
+                details: `Role "${this.getName(roleName)}" does not have permission to "${action}" on resource "${resource}"${
+                    ownership ? ` with ${ownership} ownership` : ""
+                }.`,
+            };
+        }
+
+        // If we have a matching permission but need to check ownership
+        if (ownership && comparisonResult !== undefined) {
+            if (comparisonResult === "true") {
+                return {
+                    granted: true,
+                    reason: "PERMISSION_WITH_OWNERSHIP",
+                    role: roleName,
+                    resource,
+                    action,
+                    ownership,
+                    details: `Role "${this.getName(roleName)}" can "${action}" on resource "${resource}" with ${ownership} ownership.`,
+                };
+            } else {
+                return {
+                    granted: false,
+                    reason: "OWNERSHIP_CHECK_FAILED",
+                    role: roleName,
+                    resource,
+                    action,
+                    ownership,
+                    details: `Role "${this.getName(roleName)}" has permission to "${action}" on resource "${resource}", but the ${ownership} check failed.`,
+                };
+            }
+        }
+
+        // Simple permission granted
+        return {
+            granted: true,
+            reason: "PERMISSION_GRANTED",
+            role: roleName,
+            resource,
+            action,
+            ownership,
+            details: `Role "${this.getName(roleName)}" has permission to "${action}" on resource "${resource}"${
+                ownership ? ` with ${ownership} ownership` : ""
+            }.`,
+        };
     }
 
     /**

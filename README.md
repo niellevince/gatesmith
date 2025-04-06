@@ -13,6 +13,8 @@ A lightweight and flexible role-based access control system implemented in TypeS
 - Wildcard support for granting all permissions on a resource
 - Helper functions for immediate ownership and group membership checks
 - Custom validation functions for complex permission rules
+- Permission explanation mechanism to understand why access was granted or denied
+- Runtime role configuration updates to modify permissions without restarting
 
 ## Installation
 
@@ -219,6 +221,109 @@ const availableRoles = rbac.getRoles();
 availableRoles.forEach((role) => {
     console.log(`${role}: ${rbac.getName(role)}`);
 });
+```
+
+### Permission Explanations
+
+```typescript
+// Get detailed explanation for why a permission was granted or denied
+const explanation = rbac.canExplain("admin", "posts", "delete");
+console.log(explanation);
+/* Output:
+{
+  granted: true,
+  reason: 'PERMISSION_GRANTED',
+  role: 'admin',
+  resource: 'posts',
+  action: 'delete',
+  ownership: undefined,
+  details: 'Role "Administrator" has permission to "delete" on resource "posts".'
+}
+*/
+
+// Explanation for denied permission (ownership check failed)
+const denied = rbac.canExplain(
+    "user",
+    "posts",
+    own("update", "user1", "user2"),
+);
+console.log(denied);
+/* Output:
+{
+  granted: false,
+  reason: 'OWNERSHIP_CHECK_FAILED',
+  role: 'user',
+  resource: 'posts',
+  action: 'update',
+  ownership: 'own',
+  details: 'Role "Regular User" has permission to "update" on resource "posts", but the own check failed.'
+}
+*/
+
+// Non-existent role explanation
+const nonExistent = rbac.canExplain("nonexistent", "posts", "read");
+console.log(nonExistent);
+/* Output:
+{
+  granted: false,
+  reason: 'ROLE_NOT_FOUND',
+  role: 'nonexistent',
+  resource: 'posts',
+  action: 'read',
+  details: 'Role "nonexistent" does not exist.'
+}
+*/
+
+// Wildcard permission explanation
+const wildcardExplanation = rbac.canExplain(
+    "superadmin",
+    "system",
+    "any-action",
+);
+console.log(wildcardExplanation);
+/* Output:
+{
+  granted: true,
+  reason: 'WILDCARD_PERMISSION',
+  role: 'superadmin',
+  resource: 'system',
+  action: 'any-action',
+  details: 'Role "Super Administrator" has wildcard permission for resource "system".'
+}
+*/
+```
+
+### Dynamic Role Updates
+
+```typescript
+// Update permissions for an existing role at runtime
+rbac.updateRoles({
+    guest: {
+        permissions: {
+            posts: ["read", "update"], // Add "update" permission to guest
+        },
+    },
+});
+
+// Check updated permissions
+rbac.can("guest", "posts", "update"); // true
+
+// Add a completely new role
+rbac.updateRoles({
+    developer: {
+        name: "Developer",
+        permissions: {
+            system: ["read", "debug"],
+            logs: ["read", "download"],
+        },
+        description: "Technical developer with system access",
+    },
+});
+
+// Check if the new role exists and has permissions
+rbac.getRoles().includes("developer"); // true
+rbac.can("developer", "system", "debug"); // true
+rbac.getName("developer"); // "Developer"
 ```
 
 ### How the Helper Functions Work

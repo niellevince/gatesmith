@@ -22,6 +22,7 @@ const roles: RolesConfig = {
             "group-chat": ["create", "update", "read", "delete", "moderate"],
             reports: ["read", "generate", "export:val"],
         },
+        description: "System administrator with full access to most resources",
     },
     superadmin: {
         name: "Super Administrator",
@@ -35,6 +36,7 @@ const roles: RolesConfig = {
             "group-chat": [WILDCARD_PERMISSION],
             reports: [WILDCARD_PERMISSION],
         },
+        description: "Super administrator with complete system access",
     },
     editor: {
         name: "Content Editor",
@@ -44,6 +46,7 @@ const roles: RolesConfig = {
             "group-chat": ["read", "update:group"],
             reports: ["read", "generate:val"],
         },
+        description: "Content editor with management of own content",
     },
     moderator: {
         name: "Content Moderator",
@@ -55,6 +58,7 @@ const roles: RolesConfig = {
             // Group chat moderation
             "group-chat": ["read", "moderate"],
         },
+        description: "Moderator for community content",
     },
     user: {
         name: "Regular User",
@@ -64,6 +68,7 @@ const roles: RolesConfig = {
             "group-chat": ["read", "update:group"],
             reports: ["read:val"],
         },
+        description: "Standard user account",
     },
     guest: {
         name: "Guest User",
@@ -72,6 +77,7 @@ const roles: RolesConfig = {
             comments: ["read"],
             "group-chat": ["read"],
         },
+        description: "Unauthenticated guest with limited access",
     },
 };
 
@@ -188,24 +194,78 @@ console.log(
     rbac.can("user", "reports", val("read", isUnderRateLimit)),
 );
 
-// Complex validation combining multiple factors
-const canExportReports = () => {
-    const isAdmin = true; // Pretend we verified admin status
-    const hasExportPermission = true; // Pretend we checked export permission
-    const isDataAvailable = true; // Pretend we checked if data is available
-    return (
-        isAdmin && hasExportPermission && isDataAvailable && isBusinessHours()
-    );
-};
+// Permission explanation tests
+console.log("\n5. Permission Explanation Tests:");
 
-// Admin can export reports with complex validation
+// Explain why a permission is granted
+const explanation1 = rbac.canExplain("admin", "posts", "delete");
+console.log("Explanation for admin deleting posts:");
+console.log(explanation1);
+
+// Explain why a permission is denied (ownership check failed)
+const explanation2 = rbac.canExplain(
+    "user",
+    "posts",
+    own("update", user1Id, user2Id),
+);
+console.log("\nExplanation for user updating another user's post:");
+console.log(explanation2);
+
+// Explain for non-existent role
+const explanation3 = rbac.canExplain("nonexistent", "posts", "read");
+console.log("\nExplanation for non-existent role:");
+console.log(explanation3);
+
+// Explanation for wildcard permission
+const explanation4 = rbac.canExplain("superadmin", "system", "any-action");
+console.log("\nExplanation for superadmin with wildcard permission:");
+console.log(explanation4);
+
+// Role update tests
+console.log("\n6. Role Update Tests:");
+
+// Current permissions
 console.log(
-    "Admin can export reports with complex validation:",
-    rbac.can("admin", "reports", val("export", canExportReports)),
+    "Before update - Guest can update posts:",
+    rbac.can("guest", "posts", "update"),
+);
+
+// Update roles by adding new permissions to an existing role
+rbac.updateRoles({
+    guest: {
+        permissions: {
+            posts: ["read", "update"], // Add "update" permission
+        },
+    },
+});
+
+// Check updated permissions
+console.log(
+    "After update - Guest can update posts:",
+    rbac.can("guest", "posts", "update"),
+);
+
+// Add a completely new role
+rbac.updateRoles({
+    developer: {
+        name: "Developer",
+        permissions: {
+            system: ["read", "debug"],
+            logs: ["read", "download"],
+        },
+        description: "Technical developer with system access",
+    },
+});
+
+// Check if the new role exists and has permissions
+console.log("Developer role exists:", rbac.getRoles().includes("developer"));
+console.log(
+    "Developer can debug system:",
+    rbac.can("developer", "system", "debug"),
 );
 
 // Wildcard permission tests
-console.log("\n5. Wildcard Permission Tests:");
+console.log("\n7. Wildcard Permission Tests:");
 console.log(
     "Super Admin has wildcard permission for system:",
     rbac.hasWildcardPermission("superadmin", "system"),
@@ -222,20 +282,25 @@ console.log(
 );
 
 // Role name tests
-console.log("\n6. Role Names:");
+console.log("\n8. Role Names:");
 console.log("'superadmin' display name:", rbac.getName("superadmin"));
 console.log("'moderator' display name:", rbac.getName("moderator"));
 console.log("'guest' display name:", rbac.getName("guest"));
+console.log("'developer' display name (new role):", rbac.getName("developer"));
 console.log(
     "'manager' display name (undefined role):",
     rbac.getName("manager"),
 );
 
 // Edge case tests
-console.log("\n7. Edge Cases:");
+console.log("\n9. Edge Cases:");
 console.log(
     "Check permission for nonexistent role:",
-    rbac.can("nonexistent", "posts", "read"),
+    rbac.can("nonexistent-role", "posts", "read"),
 );
 console.log("Guest can read posts:", rbac.can("guest", "posts", "read"));
-console.log("Guest cannot update posts:", rbac.can("guest", "posts", "update"));
+// After the update, guest can update posts
+console.log(
+    "Guest can update posts (after update):",
+    rbac.can("guest", "posts", "update"),
+);
