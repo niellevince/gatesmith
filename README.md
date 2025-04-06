@@ -1,6 +1,10 @@
-# Custom RBAC (Role-Based Access Control) System
+# Gatesmith
 
-A lightweight and flexible role-based access control system implemented in TypeScript, with support for resource-specific permissions and ownership checking.
+Crafting elegant access control for modern JavaScript applications
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+Gatesmith is a lightweight, flexible permission system that combines the simplicity of RBAC with the power of attribute-based validation. Stop wrestling with complex authorization code and let Gatesmith handle your permission logic with elegance and precision.
 
 ## Features
 
@@ -18,17 +22,60 @@ A lightweight and flexible role-based access control system implemented in TypeS
 
 ## Installation
 
-Clone the repository:
-
 ```bash
-git clone https://github.com/yourusername/custom_rbac.git
-cd custom_rbac
+npm install gatesmith
 ```
 
-Install dependencies:
+## Quick Start
 
-```bash
-npm install
+```typescript
+import { RBAC, own, val, WILDCARD_PERMISSION } from "gatesmith";
+
+// Define roles with permissions
+const rbac = new RBAC({
+    admin: {
+        name: "Administrator",
+        permissions: {
+            posts: ["create", "read", "update", "delete"],
+            settings: [WILDCARD_PERMISSION], // Wildcard for all actions
+        },
+    },
+    editor: {
+        name: "Content Editor",
+        permissions: {
+            posts: ["create:own", "read", "update:own", "delete:own"],
+        },
+    },
+    user: {
+        name: "Regular User",
+        permissions: {
+            posts: ["read"],
+        },
+    },
+});
+
+// Basic permission check
+rbac.can("admin", "posts", "delete"); // true
+
+// Ownership check
+rbac.can("editor", "posts", own("update", currentUserId, postOwnerId)); // true if user owns the post
+
+// Custom validation
+rbac.can(
+    "admin",
+    "settings",
+    val("changeApiKeys", () => {
+        return isBusinessHours() && hasRequiredTraining();
+    }),
+);
+
+// Get explanation for permission decision
+const explanation = rbac.canExplain(
+    "editor",
+    "posts",
+    own("delete", userId, resourceId),
+);
+console.log(explanation);
 ```
 
 ## Usage
@@ -51,30 +98,12 @@ Development mode with hot reloading:
 npm run dev
 ```
 
-## Testing
-
-The project includes a comprehensive set of test cases demonstrating various aspects of the RBAC system:
-
-1. Basic permission checks
-2. Ownership-based permissions using helper functions
-3. Group membership checks
-4. Custom validation functions
-5. Wildcard permissions
-6. Role name retrieval
-7. Edge cases
-
-To run the demonstration:
-
-```bash
-npm start
-```
-
-## Examples
+## Documentation
 
 ### Define Roles & Permissions
 
 ```typescript
-import { RBAC, RolesConfig, WILDCARD_PERMISSION } from "./rbac";
+import { RBAC, RolesConfig, WILDCARD_PERMISSION } from "gatesmith";
 
 // Define role-based permissions with display names
 const roles: RolesConfig = {
@@ -130,7 +159,7 @@ rbac.can("user", "posts", "update"); // false - user can only update:own
 ### Helper Functions for Ownership and Group Checks
 
 ```typescript
-import { own, group } from "./rbac";
+import { own, group } from "gatesmith";
 
 // User IDs for checking
 const userId = "123";
@@ -153,7 +182,7 @@ rbac.can("user", "group-chat", group("update", userId, ["456", "789"])); // fals
 ### Custom Validation Functions
 
 ```typescript
-import { val } from "./rbac";
+import { val } from "gatesmith";
 
 // Business hours validation (9 AM to 5 PM, Monday to Friday)
 const isBusinessHours = () => {
@@ -350,6 +379,10 @@ rbac.can(
 // - 'export:val|true' if the validation function returns true
 ```
 
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
 ## License
 
-ISC
+MIT

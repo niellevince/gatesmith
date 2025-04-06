@@ -1,7 +1,7 @@
 {
-    "name": "custom_rbac",
+    "name": "gatesmith",
     "version": "1.0.0",
-    "description": "",
+    "description": "Crafting elegant access control for modern JavaScript applications",
     "main": "dist/index.js",
     "scripts": {
         "clean": "rimraf dist",
@@ -11,14 +11,28 @@
         "dev": "ts-node src/index.ts",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
-    "keywords": [],
+    "keywords": [
+        "rbac",
+        "access-control",
+        "authorization",
+        "permissions",
+        "roles",
+        "security",
+        "typescript",
+        "ownership",
+        "validator"
+    ],
     "author": "",
-    "license": "ISC",
+    "license": "MIT",
     "devDependencies": {
         "@types/node": "^22.14.0",
         "prettier": "3.5.3",
         "rimraf": "^5.0.6",
         "ts-node": "^10.9.2",
         "typescript": "^5.8.3"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/yourusername/gatesmith.git"
     }
 }

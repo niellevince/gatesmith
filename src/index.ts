@@ -1,5 +1,5 @@
 /**
- * Custom RBAC (Role-Based Access Control) System with Ownership
+ * Gatesmith - Crafting elegant access control for modern JavaScript applications
  */
 
 import {
