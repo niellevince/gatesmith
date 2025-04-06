@@ -10,6 +10,7 @@ export type Resource = string; // e.g. 'posts', 'users', etc.
 export const WILDCARD_PERMISSION = "*";
 
 export type PermissionAction = string;
+export type ValidatorFunction = () => boolean; // Custom validator function type
 
 // Helper functions for permission checks with immediate evaluation
 export function own(
@@ -28,6 +29,17 @@ export function group(
 ): string {
     const isMember = groupMemberIds.includes(userId);
     return `${action}:group|${isMember}`;
+}
+
+/**
+ * Helper function for custom validation
+ * @param action The action to check
+ * @param validator A function that returns true or false based on custom logic
+ * @returns A permission string with result of validation
+ */
+export function val(action: string, validator: ValidatorFunction): string {
+    const isValid = validator();
+    return `${action}:val|${isValid}`;
 }
 
 // Role definitions can be nested (by resource) or flat
@@ -78,11 +90,14 @@ export class RBAC {
     /**
      * Checks if a role can perform an action on a resource
      * Simplified syntax: can('user', 'posts', 'update')
-     * With helpers: can('user', 'posts', own('update', userId, resourceOwnerId))
+     * With helpers:
+     *   can('user', 'posts', own('update', userId, resourceOwnerId))
+     *   can('user', 'posts', group('update', userId, groupMemberIds))
+     *   can('user', 'posts', val('update', () => customLogic))
      *
      * @param roleName The name of the role
      * @param resource The resource to check
-     * @param permission The permission string with optional ownership/group results
+     * @param permission The permission string with optional ownership/group/validation results
      * @returns boolean indicating if the role has the permission
      */
     can(roleName: string, resource: Resource, permission: Permission): boolean {
@@ -100,7 +115,7 @@ export class RBAC {
                 return true;
             }
 
-            // For ownership/group checks, we need to check the comparison result
+            // For ownership/group/validation checks, we need to check the comparison result
             if (comparisonResult === "true") {
                 return true;
             } else if (comparisonResult === "false") {

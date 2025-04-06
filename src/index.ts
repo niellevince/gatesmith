@@ -2,7 +2,14 @@
  * Custom RBAC (Role-Based Access Control) System with Ownership
  */
 
-import { RBAC, RolesConfig, WILDCARD_PERMISSION, own, group } from "./rbac";
+import {
+    RBAC,
+    RolesConfig,
+    WILDCARD_PERMISSION,
+    own,
+    group,
+    val,
+} from "./rbac";
 
 // Define roles configuration with display names and wildcards
 const roles: RolesConfig = {
@@ -13,6 +20,7 @@ const roles: RolesConfig = {
             users: ["create", "update", "read", "delete"],
             comments: ["create", "update", "read", "delete"],
             "group-chat": ["create", "update", "read", "delete", "moderate"],
+            reports: ["read", "generate", "export:val"],
         },
     },
     superadmin: {
@@ -25,6 +33,7 @@ const roles: RolesConfig = {
             users: [WILDCARD_PERMISSION],
             comments: [WILDCARD_PERMISSION],
             "group-chat": [WILDCARD_PERMISSION],
+            reports: [WILDCARD_PERMISSION],
         },
     },
     editor: {
@@ -33,6 +42,7 @@ const roles: RolesConfig = {
             posts: ["create:own", "update:own", "read", "delete:own"],
             comments: ["create:own", "update:own", "read", "delete:own"],
             "group-chat": ["read", "update:group"],
+            reports: ["read", "generate:val"],
         },
     },
     moderator: {
@@ -52,6 +62,7 @@ const roles: RolesConfig = {
             posts: ["create:own", "update:own", "read", "delete:own"],
             comments: ["create:own", "update:own", "read", "delete:own"],
             "group-chat": ["read", "update:group"],
+            reports: ["read:val"],
         },
     },
     guest: {
@@ -141,8 +152,60 @@ console.log(
     rbac.can("moderator", "group-chat", "moderate"),
 );
 
+// Custom validation tests
+console.log("\n4. Custom Validation Tests:");
+
+// Business hours validation (9 AM to 5 PM, Monday to Friday)
+const isBusinessHours = () => {
+    const now = new Date();
+    const hours = now.getHours();
+    const day = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    return day >= 1 && day <= 5 && hours >= 9 && hours < 17;
+};
+
+// Check if we're in business hours for report generation
+console.log(
+    "Editor can generate reports during business hours:",
+    rbac.can("editor", "reports", val("generate", isBusinessHours)),
+);
+
+// Rate limiting example (allow 5 report reads per day)
+let reportReadCount = 3; // Pretend user has already read 3 reports today
+const isUnderRateLimit = () => {
+    return reportReadCount < 5;
+};
+
+// User can read reports if under rate limit
+console.log(
+    "User can read reports if under rate limit:",
+    rbac.can("user", "reports", val("read", isUnderRateLimit)),
+);
+
+// Simulate reaching the rate limit
+reportReadCount = 5;
+console.log(
+    "User cannot read reports if rate limit reached:",
+    rbac.can("user", "reports", val("read", isUnderRateLimit)),
+);
+
+// Complex validation combining multiple factors
+const canExportReports = () => {
+    const isAdmin = true; // Pretend we verified admin status
+    const hasExportPermission = true; // Pretend we checked export permission
+    const isDataAvailable = true; // Pretend we checked if data is available
+    return (
+        isAdmin && hasExportPermission && isDataAvailable && isBusinessHours()
+    );
+};
+
+// Admin can export reports with complex validation
+console.log(
+    "Admin can export reports with complex validation:",
+    rbac.can("admin", "reports", val("export", canExportReports)),
+);
+
 // Wildcard permission tests
-console.log("\n4. Wildcard Permission Tests:");
+console.log("\n5. Wildcard Permission Tests:");
 console.log(
     "Super Admin has wildcard permission for system:",
     rbac.hasWildcardPermission("superadmin", "system"),
@@ -159,7 +222,7 @@ console.log(
 );
 
 // Role name tests
-console.log("\n5. Role Names:");
+console.log("\n6. Role Names:");
 console.log("'superadmin' display name:", rbac.getName("superadmin"));
 console.log("'moderator' display name:", rbac.getName("moderator"));
 console.log("'guest' display name:", rbac.getName("guest"));
@@ -169,7 +232,7 @@ console.log(
 );
 
 // Edge case tests
-console.log("\n6. Edge Cases:");
+console.log("\n7. Edge Cases:");
 console.log(
     "Check permission for nonexistent role:",
     rbac.can("nonexistent", "posts", "read"),

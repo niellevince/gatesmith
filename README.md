@@ -12,6 +12,7 @@ A lightweight and flexible role-based access control system implemented in TypeS
 - User-friendly role display names for UI integration
 - Wildcard support for granting all permissions on a resource
 - Helper functions for immediate ownership and group membership checks
+- Custom validation functions for complex permission rules
 
 ## Installation
 
@@ -55,9 +56,10 @@ The project includes a comprehensive set of test cases demonstrating various asp
 1. Basic permission checks
 2. Ownership-based permissions using helper functions
 3. Group membership checks
-4. Wildcard permissions
-5. Role name retrieval
-6. Edge cases
+4. Custom validation functions
+5. Wildcard permissions
+6. Role name retrieval
+7. Edge cases
 
 To run the demonstration:
 
@@ -79,6 +81,7 @@ const roles: RolesConfig = {
         permissions: {
             posts: ["create", "update", "read", "delete"],
             users: ["create", "update", "read", "delete"],
+            reports: ["read", "generate", "export:val"], // Custom validation
         },
     },
     superadmin: {
@@ -104,6 +107,7 @@ const roles: RolesConfig = {
         permissions: {
             posts: ["create:own", "update:own", "read", "delete:own"],
             "group-chat": ["read", "update:group"],
+            reports: ["read:val"], // Custom validation
         },
     },
 };
@@ -144,6 +148,46 @@ rbac.can("user", "group-chat", group("update", userId, ["456", "789"])); // fals
 // No need to manually compare IDs - the result is already included in the permission
 ```
 
+### Custom Validation Functions
+
+```typescript
+import { val } from "./rbac";
+
+// Business hours validation (9 AM to 5 PM, Monday to Friday)
+const isBusinessHours = () => {
+    const now = new Date();
+    const hours = now.getHours();
+    const day = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    return day >= 1 && day <= 5 && hours >= 9 && hours < 17;
+};
+
+// Only allow report generation during business hours
+rbac.can("editor", "reports", val("generate", isBusinessHours));
+
+// Rate limiting example
+let reportReadCount = 3; // Pretend user has already read 3 reports today
+const isUnderRateLimit = () => {
+    return reportReadCount < 5; // Allow max 5 report reads per day
+};
+
+// User can read reports if under rate limit
+rbac.can("user", "reports", val("read", isUnderRateLimit));
+
+// Complex validation combining multiple factors
+const canExportReports = () => {
+    // You can combine any number of conditions here
+    const isAdmin = true;
+    const hasExportPermission = true;
+    const isDataAvailable = true;
+    return (
+        isAdmin && hasExportPermission && isDataAvailable && isBusinessHours()
+    );
+};
+
+// Admin can export reports with complex validation
+rbac.can("admin", "reports", val("export", canExportReports));
+```
+
 ### Wildcard Permissions
 
 ```typescript
@@ -179,7 +223,7 @@ availableRoles.forEach((role) => {
 
 ### How the Helper Functions Work
 
-The helper functions perform the ID comparison immediately and return a permission string with the result:
+The helper functions perform the comparison immediately and return a permission string with the result:
 
 ```typescript
 // These helper functions replace the previous string format approach
@@ -188,14 +232,17 @@ rbac.can("user", "posts", `update:own|${userId},${resourceId}`);
 
 // New way with helper functions:
 rbac.can("user", "posts", own("update", userId, resourceId));
+rbac.can("user", "group-chat", group("update", userId, memberIds));
+rbac.can(
+    "admin",
+    "reports",
+    val("export", () => complexValidationLogic),
+);
 
 // The helper functions evaluate the comparison and return:
 // - 'update:own|true' if userId === resourceId
-// - 'update:own|false' if userId !== resourceId
-
-// Group membership checks work similarly:
-rbac.can("user", "chat", group("update", userId, memberIds));
-// Returns 'update:group|true' if userId is in memberIds, otherwise 'update:group|false'
+// - 'update:group|true' if userId is in memberIds
+// - 'export:val|true' if the validation function returns true
 ```
 
 ## License
