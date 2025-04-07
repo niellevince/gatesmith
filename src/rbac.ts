@@ -253,14 +253,16 @@ export class RBAC {
                 return false;
             }
 
-            // If required has ownership but granted doesn't, not a match
-            if (ownership && !parsedP.ownership) {
+            // If we're checking a general permission (e.g., "read")
+            // but the role only has specific permissions (e.g., "read:own"),
+            // then it's not a match
+            if (!ownership && parsedP.ownership) {
                 return false;
             }
 
-            // If granted has ownership but required doesn't, it's a match (more specific permission can satisfy a general one)
-            if (!ownership && parsedP.ownership) {
-                return true;
+            // If required has ownership but granted doesn't, not a match
+            if (ownership && !parsedP.ownership) {
+                return false;
             }
 
             // If both have ownership types and they don't match, not a match
@@ -421,14 +423,32 @@ export class RBAC {
             }
 
             // Match with broader permission (role has ownership but request doesn't need it)
-            if (parsedP.action === action && parsedP.ownership && !ownership) {
-                return true;
-            }
+            // This is intentionally removed to fix the bug
+            // If we're checking a general permission but the role only has specific permissions,
+            // then it's not a match
 
             return false;
         });
 
         if (matchingPermissions.length === 0) {
+            // Check if we have any ownership-qualified permissions for this action
+            const hasOwnershipPermissions = permissions.some((p) => {
+                const parsedP = this.parsePermission(p);
+                return parsedP.action === action && parsedP.ownership;
+            });
+
+            if (!ownership && hasOwnershipPermissions) {
+                return {
+                    granted: false,
+                    reason: "REQUIRES_OWNERSHIP",
+                    role: roleName,
+                    resource,
+                    action,
+                    ownership,
+                    details: `Role "${this.getName(roleName)}" has ownership-restricted permission for "${action}" on resource "${resource}". You must specify ownership.`,
+                };
+            }
+
             return {
                 granted: false,
                 reason: "ACTION_NOT_ALLOWED",

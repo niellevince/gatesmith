@@ -408,3 +408,30 @@ const adminUpdateExplanation = rbac.canExplain(
 );
 console.log("\nExplanation for admin update permissions array:");
 console.log(adminUpdateExplanation);
+
+// Can user read all users?
+console.log("User can read all users:", rbac.can("user", "read", "users"));
+console.log(
+    "User can read all users explanation:",
+    rbac.canExplain("user", "read", "users"),
+);
+
+// Can user read their own user profile?
+console.log(
+    "Can user read their own user profile?",
+    rbac.can("user", ["read", own("read", user1Id, user1Id)], "users"),
+);
+console.log(
+    "User can read their own user profile explanation:",
+    rbac.canExplain("user", ["read", own("read", user1Id, user1Id)], "users"),
+);
+
+// Can user read another user's user profile?
+console.log(
+    "Can user read another user's user profile?",
+    rbac.can("user", own("read", user1Id, user2Id), "users"),
+);
+console.log(
+    "Can user read another user's user profile explanation:",
+    rbac.canExplain("user", own("read", user1Id, user2Id), "users"),
+);

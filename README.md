@@ -55,25 +55,25 @@ const rbac = new RBAC({
 });
 
 // Basic permission check
-rbac.can("admin", "posts", "delete"); // true
+rbac.can("admin", "delete", "posts"); // true
 
 // Ownership check
-rbac.can("editor", "posts", own("update", currentUserId, postOwnerId)); // true if user owns the post
+rbac.can("editor", own("update", currentUserId, postOwnerId), "posts"); // true if user owns the post
 
 // Custom validation
 rbac.can(
     "admin",
-    "settings",
     val("changeApiKeys", () => {
         return isBusinessHours() && hasRequiredTraining();
     }),
+    "settings",
 );
 
 // Get explanation for permission decision
 const explanation = rbac.canExplain(
     "editor",
-    "posts",
     own("delete", userId, resourceId),
+    "posts",
 );
 console.log(explanation);
 ```
@@ -151,9 +151,9 @@ const rbac = new RBAC(roles);
 
 ```typescript
 // Check if role can perform action on resource
-rbac.can("admin", "posts", "delete"); // true
-rbac.can("user", "posts", "read"); // true
-rbac.can("user", "posts", "update"); // false - user can only update:own
+rbac.can("admin", "delete", "posts"); // true
+rbac.can("user", "read", "posts"); // true
+rbac.can("user", "update", "posts"); // false - user can only update:own
 ```
 
 ### Helper Functions for Ownership and Group Checks
@@ -168,12 +168,12 @@ const otherPostId = "456"; // Post owned by someone else
 const groupMembers = ["123", "456", "789"]; // User is a member of this group
 
 // Check ownership (returns an evaluated permission string)
-rbac.can("user", "posts", own("update", userId, postOwnerId)); // true
-rbac.can("user", "posts", own("update", userId, otherPostId)); // false
+rbac.can("user", own("update", userId, postOwnerId), "posts"); // true
+rbac.can("user", own("update", userId, otherPostId), "posts"); // false
 
 // Check group membership (returns an evaluated permission string)
-rbac.can("user", "group-chat", group("update", userId, groupMembers)); // true
-rbac.can("user", "group-chat", group("update", userId, ["456", "789"])); // false
+rbac.can("user", group("update", userId, groupMembers), "group-chat"); // true
+rbac.can("user", group("update", userId, ["456", "789"]), "group-chat"); // false
 
 // Helper functions perform the comparison immediately
 // No need to manually compare IDs - the result is already included in the permission
@@ -193,7 +193,7 @@ const isBusinessHours = () => {
 };
 
 // Only allow report generation during business hours
-rbac.can("editor", "reports", val("generate", isBusinessHours));
+rbac.can("editor", val("generate", isBusinessHours), "reports");
 
 // Rate limiting example
 let reportReadCount = 3; // Pretend user has already read 3 reports today
@@ -202,7 +202,7 @@ const isUnderRateLimit = () => {
 };
 
 // User can read reports if under rate limit
-rbac.can("user", "reports", val("read", isUnderRateLimit));
+rbac.can("user", val("read", isUnderRateLimit), "reports");
 
 // Complex validation combining multiple factors
 const canExportReports = () => {
@@ -216,7 +216,7 @@ const canExportReports = () => {
 };
 
 // Admin can export reports with complex validation
-rbac.can("admin", "reports", val("export", canExportReports));
+rbac.can("admin", val("export", canExportReports), "reports");
 ```
 
 ### Wildcard Permissions
@@ -226,12 +226,12 @@ rbac.can("admin", "reports", val("export", canExportReports));
 rbac.hasWildcardPermission("superadmin", "system"); // true
 
 // Wildcard allows any action, even undefined ones
-rbac.can("superadmin", "system", "configure-backup"); // true
-rbac.can("moderator", "comments", "flag-inappropriate"); // true
+rbac.can("superadmin", "configure-backup", "system"); // true
+rbac.can("moderator", "flag-inappropriate", "comments"); // true
 
 // Regular permissions still work normally
-rbac.can("moderator", "posts", "read"); // true
-rbac.can("moderator", "posts", "delete"); // false - not in permissions list
+rbac.can("moderator", "read", "posts"); // true
+rbac.can("moderator", "delete", "posts"); // false - not in permissions list
 ```
 
 ### Role Management
@@ -256,7 +256,7 @@ availableRoles.forEach((role) => {
 
 ```typescript
 // Get detailed explanation for why a permission was granted or denied
-const explanation = rbac.canExplain("admin", "posts", "delete");
+const explanation = rbac.canExplain("admin", "delete", "posts");
 console.log(explanation);
 /* Output:
 {
@@ -273,8 +273,8 @@ console.log(explanation);
 // Explanation for denied permission (ownership check failed)
 const denied = rbac.canExplain(
     "user",
-    "posts",
     own("update", "user1", "user2"),
+    "posts",
 );
 console.log(denied);
 /* Output:
@@ -290,7 +290,7 @@ console.log(denied);
 */
 
 // Non-existent role explanation
-const nonExistent = rbac.canExplain("nonexistent", "posts", "read");
+const nonExistent = rbac.canExplain("nonexistent", "read", "posts");
 console.log(nonExistent);
 /* Output:
 {
@@ -306,8 +306,8 @@ console.log(nonExistent);
 // Wildcard permission explanation
 const wildcardExplanation = rbac.canExplain(
     "superadmin",
-    "system",
     "any-action",
+    "system",
 );
 console.log(wildcardExplanation);
 /* Output:
@@ -335,7 +335,7 @@ rbac.updateRoles({
 });
 
 // Check updated permissions
-rbac.can("guest", "posts", "update"); // true
+rbac.can("guest", "update", "posts"); // true
 
 // Add a completely new role
 rbac.updateRoles({
@@ -351,7 +351,7 @@ rbac.updateRoles({
 
 // Check if the new role exists and has permissions
 rbac.getRoles().includes("developer"); // true
-rbac.can("developer", "system", "debug"); // true
+rbac.can("developer", "debug", "system"); // true
 rbac.getName("developer"); // "Developer"
 ```
 
@@ -362,15 +362,15 @@ The helper functions perform the comparison immediately and return a permission 
 ```typescript
 // These helper functions replace the previous string format approach
 // Old way:
-rbac.can("user", "posts", `update:own|${userId},${resourceId}`);
+rbac.can("user", `update:own|${userId},${resourceId}`, "posts");
 
 // New way with helper functions:
-rbac.can("user", "posts", own("update", userId, resourceId));
-rbac.can("user", "group-chat", group("update", userId, memberIds));
+rbac.can("user", own("update", userId, resourceId), "posts");
+rbac.can("user", group("update", userId, memberIds), "group-chat");
 rbac.can(
     "admin",
-    "reports",
     val("export", () => complexValidationLogic),
+    "reports",
 );
 
 // The helper functions evaluate the comparison and return:
