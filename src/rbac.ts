@@ -167,23 +167,23 @@ export class RBAC {
 
     /**
      * Checks if a role can perform an action on a resource
-     * Simplified syntax: can('user', 'posts', 'update')
+     * Simplified syntax: can('user', 'update', 'posts')
      * With helpers:
-     *   can('user', 'posts', own('update', userId, resourceOwnerId))
-     *   can('user', 'posts', group('update', userId, groupMemberIds))
-     *   can('user', 'posts', val('update', () => customLogic))
+     *   can('user', own('update', userId, resourceOwnerId), 'posts')
+     *   can('user', group('update', userId, groupMemberIds), 'posts')
+     *   can('user', val('update', () => customLogic), 'posts')
      * Array syntax:
-     *   can('user', 'posts', ['update', own('update', userId, resourceOwnerId)])
+     *   can('user', ['update', own('update', userId, resourceOwnerId)], 'posts')
      *
      * @param roleName The name of the role
-     * @param resource The resource to check
      * @param permission The permission string with optional ownership/group/validation results, or an array of permissions
+     * @param resource The resource to check
      * @returns boolean indicating if the role has the permission
      */
     can(
         roleName: string,
-        resource: Resource,
         permission: Permission | Permission[],
+        resource: Resource,
     ): boolean {
         // Convert single permission to array for consistent handling
         const permissions = Array.isArray(permission)
@@ -192,22 +192,22 @@ export class RBAC {
 
         // Return true if any of the permissions are granted
         return permissions.some((perm) =>
-            this.checkSinglePermission(roleName, resource, perm),
+            this.checkSinglePermission(roleName, perm, resource),
         );
     }
 
     /**
      * Checks a single permission for a role on a resource
      * @param roleName The name of the role
-     * @param resource The resource to check
      * @param permission The permission string
+     * @param resource The resource to check
      * @returns boolean indicating if the role has the permission
      * @private Internal method used by can()
      */
     private checkSinglePermission(
         roleName: string,
-        resource: Resource,
         permission: Permission,
+        resource: Resource,
     ): boolean {
         // Parse the permission string
         const { action, ownership, comparisonResult } =
@@ -290,38 +290,38 @@ export class RBAC {
     /**
      * Explains why a permission check would pass or fail
      * @param roleName The name of the role
-     * @param resource The resource to check
      * @param permission The permission string with optional ownership/group/validation results, or an array of permissions
+     * @param resource The resource to check
      * @returns An explanation object with details about the permission decision
      */
     canExplain(
         roleName: string,
-        resource: Resource,
         permission: Permission | Permission[],
+        resource: Resource,
     ): PermissionExplanation | PermissionExplanation[] {
         // If it's an array of permissions, return an array of explanations
         if (Array.isArray(permission)) {
             return permission.map((perm) =>
-                this.explainSinglePermission(roleName, resource, perm),
+                this.explainSinglePermission(roleName, perm, resource),
             );
         }
 
         // For a single permission, return a single explanation
-        return this.explainSinglePermission(roleName, resource, permission);
+        return this.explainSinglePermission(roleName, permission, resource);
     }
 
     /**
      * Explains why a single permission check would pass or fail
      * @param roleName The name of the role
-     * @param resource The resource to check
      * @param permission The permission string
+     * @param resource The resource to check
      * @returns An explanation object with details about the permission decision
      * @private Internal method used by canExplain()
      */
     private explainSinglePermission(
         roleName: string,
-        resource: Resource,
         permission: Permission,
+        resource: Resource,
     ): PermissionExplanation {
         // Check if the role exists
         if (!this.rolesConfig[roleName]) {
@@ -538,7 +538,7 @@ export class RBAC {
             return [];
         }
 
-        let roleDefinition = this.rolesConfig[roleName];
+        const roleDefinition = this.rolesConfig[roleName];
 
         // If no resource specified or the role definition is a flat array
         if (!resource || Array.isArray(roleDefinition)) {

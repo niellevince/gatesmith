@@ -67,6 +67,7 @@ const roles: RolesConfig = {
             comments: ["create:own", "update:own", "read", "delete:own"],
             "group-chat": ["read", "update:group"],
             reports: ["read:val"],
+            users: ["read:own"],
         },
         description: "Standard user account",
     },
@@ -104,9 +105,9 @@ console.log("------------------");
 console.log("\n1. Basic Permissions:");
 console.log(
     "Administrator can delete posts:",
-    rbac.can("admin", "posts", "delete"),
+    rbac.can("admin", "delete", "posts"),
 );
-console.log("Regular User can read posts:", rbac.can("user", "posts", "read"));
+console.log("Regular User can read posts:", rbac.can("user", "read", "posts"));
 
 // Ownership tests with the new helper functions
 console.log("\n2. Ownership Tests:");
@@ -117,22 +118,22 @@ const adminId = "admin1";
 // User can update their own posts
 console.log(
     "User can update their own post:",
-    rbac.can("user", "posts", own("update", user1Id, user1Id)),
+    rbac.can("user", own("update", user1Id, user1Id), "posts"),
 );
 
 // User cannot update others' posts
 console.log(
     "User cannot update another user's post:",
-    rbac.can("user", "posts", own("update", user1Id, user2Id)),
+    rbac.can("user", own("update", user1Id, user2Id), "posts"),
 );
 
 // Admin can update any post
-console.log("Admin can update any post:", rbac.can("admin", "posts", "update"));
+console.log("Admin can update any post:", rbac.can("admin", "update", "posts"));
 
 // Editor can delete their own posts
 console.log(
     "Editor can delete their own post:",
-    rbac.can("editor", "posts", own("delete", user1Id, user1Id)),
+    rbac.can("editor", own("delete", user1Id, user1Id), "posts"),
 );
 
 // Group membership tests
@@ -143,19 +144,19 @@ const nonGroupMembers = ["user2", "user4"];
 // User in the group can update the group chat
 console.log(
     "User can update group chat they're a member of:",
-    rbac.can("user", "group-chat", group("update", user1Id, groupMembers)),
+    rbac.can("user", group("update", user1Id, groupMembers), "group-chat"),
 );
 
 // User not in the group cannot update
 console.log(
     "User cannot update group chat they're not a member of:",
-    rbac.can("user", "group-chat", group("update", user2Id, groupMembers)),
+    rbac.can("user", group("update", user2Id, groupMembers), "group-chat"),
 );
 
 // Moderator can moderate any group chat
 console.log(
     "Moderator can moderate any group chat:",
-    rbac.can("moderator", "group-chat", "moderate"),
+    rbac.can("moderator", "moderate", "group-chat"),
 );
 
 // Custom validation tests
@@ -172,7 +173,7 @@ const isBusinessHours = () => {
 // Check if we're in business hours for report generation
 console.log(
     "Editor can generate reports during business hours:",
-    rbac.can("editor", "reports", val("generate", isBusinessHours)),
+    rbac.can("editor", val("generate", isBusinessHours), "reports"),
 );
 
 // Rate limiting example (allow 5 report reads per day)
@@ -184,40 +185,40 @@ const isUnderRateLimit = () => {
 // User can read reports if under rate limit
 console.log(
     "User can read reports if under rate limit:",
-    rbac.can("user", "reports", val("read", isUnderRateLimit)),
+    rbac.can("user", val("read", isUnderRateLimit), "reports"),
 );
 
 // Simulate reaching the rate limit
 reportReadCount = 5;
 console.log(
     "User cannot read reports if rate limit reached:",
-    rbac.can("user", "reports", val("read", isUnderRateLimit)),
+    rbac.can("user", val("read", isUnderRateLimit), "reports"),
 );
 
 // Permission explanation tests
 console.log("\n5. Permission Explanation Tests:");
 
 // Explain why a permission is granted
-const explanation1 = rbac.canExplain("admin", "posts", "delete");
+const explanation1 = rbac.canExplain("admin", "delete", "posts");
 console.log("Explanation for admin deleting posts:");
 console.log(explanation1);
 
 // Explain why a permission is denied (ownership check failed)
 const explanation2 = rbac.canExplain(
     "user",
-    "posts",
     own("update", user1Id, user2Id),
+    "posts",
 );
 console.log("\nExplanation for user updating another user's post:");
 console.log(explanation2);
 
 // Explain for non-existent role
-const explanation3 = rbac.canExplain("nonexistent", "posts", "read");
+const explanation3 = rbac.canExplain("nonexistent", "read", "posts");
 console.log("\nExplanation for non-existent role:");
 console.log(explanation3);
 
 // Explanation for wildcard permission
-const explanation4 = rbac.canExplain("superadmin", "system", "any-action");
+const explanation4 = rbac.canExplain("superadmin", "any-action", "system");
 console.log("\nExplanation for superadmin with wildcard permission:");
 console.log(explanation4);
 
@@ -227,7 +228,7 @@ console.log("\n6. Role Update Tests:");
 // Current permissions
 console.log(
     "Before update - Guest can update posts:",
-    rbac.can("guest", "posts", "update"),
+    rbac.can("guest", "update", "posts"),
 );
 
 // Update roles by adding new permissions to an existing role
@@ -242,7 +243,7 @@ rbac.updateRoles({
 // Check updated permissions
 console.log(
     "After update - Guest can update posts:",
-    rbac.can("guest", "posts", "update"),
+    rbac.can("guest", "update", "posts"),
 );
 
 // Add a completely new role
@@ -261,7 +262,7 @@ rbac.updateRoles({
 console.log("Developer role exists:", rbac.getRoles().includes("developer"));
 console.log(
     "Developer can debug system:",
-    rbac.can("developer", "system", "debug"),
+    rbac.can("developer", "debug", "system"),
 );
 
 // Wildcard permission tests
@@ -273,7 +274,7 @@ console.log(
 
 console.log(
     "Super Admin can do any action on users (even undefined actions):",
-    rbac.can("superadmin", "users", "some-undefined-action"),
+    rbac.can("superadmin", "some-undefined-action", "users"),
 );
 
 console.log(
@@ -296,13 +297,13 @@ console.log(
 console.log("\n9. Edge Cases:");
 console.log(
     "Check permission for nonexistent role:",
-    rbac.can("nonexistent-role", "posts", "read"),
+    rbac.can("nonexistent-role", "read", "posts"),
 );
-console.log("Guest can read posts:", rbac.can("guest", "posts", "read"));
+console.log("Guest can read posts:", rbac.can("guest", "read", "posts"));
 // After the update, guest can update posts
 console.log(
     "Guest can update posts (after update):",
-    rbac.can("guest", "posts", "update"),
+    rbac.can("guest", "update", "posts"),
 );
 
 // Add a new section for permission array tests
@@ -311,34 +312,36 @@ console.log("\n10. Permission Array Tests:");
 // Check if user can either read or update their own post
 console.log(
     "User can either read OR update their own post:",
-    rbac.can("user", "posts", ["read", own("update", user1Id, user1Id)]),
+    rbac.can("user", ["read", own("update", user1Id, user1Id)], "posts"),
 );
 
 // Check if user can either delete someone else's post or update their own (should pass)
 console.log(
     "User can either delete another's post OR update their own:",
-    rbac.can("user", "posts", [
-        own("delete", user1Id, user2Id),
-        own("update", user1Id, user1Id),
-    ]),
+    rbac.can(
+        "user",
+        [own("delete", user1Id, user2Id), own("update", user1Id, user1Id)],
+        "posts",
+    ),
 );
 
 // Check if user can either update or delete someone else's post (should fail)
 console.log(
     "User can either update OR delete another's post (should fail):",
-    rbac.can("user", "posts", [
-        own("update", user1Id, user2Id),
-        own("delete", user1Id, user2Id),
-    ]),
+    rbac.can(
+        "user",
+        [own("update", user1Id, user2Id), own("delete", user1Id, user2Id)],
+        "posts",
+    ),
 );
 
 // Example with explanation for an array of permissions
 console.log("\n11. Explanation for Permission Arrays:");
-const arrayExplanation = rbac.canExplain("user", "posts", [
-    "read",
-    own("update", user1Id, user2Id),
-    own("delete", user1Id, user1Id),
-]);
+const arrayExplanation = rbac.canExplain(
+    "user",
+    ["read", own("update", user1Id, user2Id), own("delete", user1Id, user1Id)],
+    "posts",
+);
 console.log("Explanation for array of permissions:");
 console.log(arrayExplanation);
 
@@ -347,20 +350,21 @@ console.log("\nAdministrator permissions with arrays:");
 // Admin can either update any post or update their own post (should pass with general update)
 console.log(
     "Admin can update any post OR update own post:",
-    rbac.can("admin", "posts", ["update", own("update", adminId, user2Id)]),
+    rbac.can("admin", ["update", own("update", adminId, user2Id)], "posts"),
 );
 
 // Admin can update their own post specifically (should also pass)
 console.log(
     "Admin can update their own post specifically:",
-    rbac.can("admin", "posts", own("update", adminId, adminId)),
+    rbac.can("admin", own("update", adminId, adminId), "posts"),
 );
 
 // Explanation for admin permissions
-const adminExplanation = rbac.canExplain("admin", "posts", [
-    "update",
-    own("update", adminId, user2Id),
-]);
+const adminExplanation = rbac.canExplain(
+    "admin",
+    ["update", own("update", adminId, user2Id)],
+    "posts",
+);
 console.log("Explanation for admin permissions array:");
 console.log(adminExplanation);
 
@@ -368,38 +372,39 @@ console.log(adminExplanation);
 console.log("\n12. Administrator 'update' and 'update:own' Permissions:");
 
 // Show that admin can update any post (general update permission)
-console.log("Admin can update any post:", rbac.can("admin", "posts", "update"));
+console.log("Admin can update any post:", rbac.can("admin", "update", "posts"));
 
 // Show that admin can update their own post (specific ownership permission)
 console.log(
     "Admin can update their own post:",
-    rbac.can("admin", "posts", own("update", adminId, adminId)),
+    rbac.can("admin", own("update", adminId, adminId), "posts"),
 );
 
 // Show that admin can update another user's post (general permission applies)
 console.log(
     "Admin can update another user's post:",
-    rbac.can("admin", "posts", own("update", adminId, user2Id)),
+    rbac.can("admin", own("update", adminId, user2Id), "posts"),
 );
 
 // Show that admin passes with array of either permission
 console.log(
     "Admin can update OR update-own (array check):",
-    rbac.can("admin", "posts", ["update", own("update", adminId, adminId)]),
+    rbac.can("admin", ["update", own("update", adminId, adminId)], "posts"),
 );
 
 // Compare to regular user who needs specific ownership
 console.log(
     "Regular user can update ONLY their own posts (not any post):",
-    !rbac.can("user", "posts", "update") &&
-        rbac.can("user", "posts", own("update", user1Id, user1Id)) &&
-        !rbac.can("user", "posts", own("update", user1Id, user2Id)),
+    !rbac.can("user", "update", "posts") &&
+        rbac.can("user", own("update", user1Id, user1Id), "posts") &&
+        !rbac.can("user", own("update", user1Id, user2Id), "posts"),
 );
 
 // Show explanation for admin permissions
-const adminUpdateExplanation = rbac.canExplain("admin", "posts", [
-    "update",
-    own("update", adminId, adminId),
-]);
+const adminUpdateExplanation = rbac.canExplain(
+    "admin",
+    ["update", own("update", adminId, adminId)],
+    "posts",
+);
 console.log("\nExplanation for admin update permissions array:");
 console.log(adminUpdateExplanation);
