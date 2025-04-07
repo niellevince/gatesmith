@@ -16,7 +16,7 @@ const roles: RolesConfig = {
     admin: {
         name: "Administrator",
         permissions: {
-            posts: ["create", "update", "read", "delete"],
+            posts: ["create", "update", "update:own", "read", "delete"],
             users: ["create", "update", "read", "delete"],
             comments: ["create", "update", "read", "delete"],
             "group-chat": ["create", "update", "read", "delete", "moderate"],
@@ -304,3 +304,102 @@ console.log(
     "Guest can update posts (after update):",
     rbac.can("guest", "posts", "update"),
 );
+
+// Add a new section for permission array tests
+console.log("\n10. Permission Array Tests:");
+
+// Check if user can either read or update their own post
+console.log(
+    "User can either read OR update their own post:",
+    rbac.can("user", "posts", ["read", own("update", user1Id, user1Id)]),
+);
+
+// Check if user can either delete someone else's post or update their own (should pass)
+console.log(
+    "User can either delete another's post OR update their own:",
+    rbac.can("user", "posts", [
+        own("delete", user1Id, user2Id),
+        own("update", user1Id, user1Id),
+    ]),
+);
+
+// Check if user can either update or delete someone else's post (should fail)
+console.log(
+    "User can either update OR delete another's post (should fail):",
+    rbac.can("user", "posts", [
+        own("update", user1Id, user2Id),
+        own("delete", user1Id, user2Id),
+    ]),
+);
+
+// Example with explanation for an array of permissions
+console.log("\n11. Explanation for Permission Arrays:");
+const arrayExplanation = rbac.canExplain("user", "posts", [
+    "read",
+    own("update", user1Id, user2Id),
+    own("delete", user1Id, user1Id),
+]);
+console.log("Explanation for array of permissions:");
+console.log(arrayExplanation);
+
+// Add to the Permission Array Tests section
+console.log("\nAdministrator permissions with arrays:");
+// Admin can either update any post or update their own post (should pass with general update)
+console.log(
+    "Admin can update any post OR update own post:",
+    rbac.can("admin", "posts", ["update", own("update", adminId, user2Id)]),
+);
+
+// Admin can update their own post specifically (should also pass)
+console.log(
+    "Admin can update their own post specifically:",
+    rbac.can("admin", "posts", own("update", adminId, adminId)),
+);
+
+// Explanation for admin permissions
+const adminExplanation = rbac.canExplain("admin", "posts", [
+    "update",
+    own("update", adminId, user2Id),
+]);
+console.log("Explanation for admin permissions array:");
+console.log(adminExplanation);
+
+// Replace the Administrator permissions section with a cleaner example
+console.log("\n12. Administrator 'update' and 'update:own' Permissions:");
+
+// Show that admin can update any post (general update permission)
+console.log("Admin can update any post:", rbac.can("admin", "posts", "update"));
+
+// Show that admin can update their own post (specific ownership permission)
+console.log(
+    "Admin can update their own post:",
+    rbac.can("admin", "posts", own("update", adminId, adminId)),
+);
+
+// Show that admin can update another user's post (general permission applies)
+console.log(
+    "Admin can update another user's post:",
+    rbac.can("admin", "posts", own("update", adminId, user2Id)),
+);
+
+// Show that admin passes with array of either permission
+console.log(
+    "Admin can update OR update-own (array check):",
+    rbac.can("admin", "posts", ["update", own("update", adminId, adminId)]),
+);
+
+// Compare to regular user who needs specific ownership
+console.log(
+    "Regular user can update ONLY their own posts (not any post):",
+    !rbac.can("user", "posts", "update") &&
+        rbac.can("user", "posts", own("update", user1Id, user1Id)) &&
+        !rbac.can("user", "posts", own("update", user1Id, user2Id)),
+);
+
+// Show explanation for admin permissions
+const adminUpdateExplanation = rbac.canExplain("admin", "posts", [
+    "update",
+    own("update", adminId, adminId),
+]);
+console.log("\nExplanation for admin update permissions array:");
+console.log(adminUpdateExplanation);

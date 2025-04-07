@@ -172,13 +172,43 @@ export class RBAC {
      *   can('user', 'posts', own('update', userId, resourceOwnerId))
      *   can('user', 'posts', group('update', userId, groupMemberIds))
      *   can('user', 'posts', val('update', () => customLogic))
+     * Array syntax:
+     *   can('user', 'posts', ['update', own('update', userId, resourceOwnerId)])
      *
      * @param roleName The name of the role
      * @param resource The resource to check
-     * @param permission The permission string with optional ownership/group/validation results
+     * @param permission The permission string with optional ownership/group/validation results, or an array of permissions
      * @returns boolean indicating if the role has the permission
      */
-    can(roleName: string, resource: Resource, permission: Permission): boolean {
+    can(
+        roleName: string,
+        resource: Resource,
+        permission: Permission | Permission[],
+    ): boolean {
+        // Convert single permission to array for consistent handling
+        const permissions = Array.isArray(permission)
+            ? permission
+            : [permission];
+
+        // Return true if any of the permissions are granted
+        return permissions.some((perm) =>
+            this.checkSinglePermission(roleName, resource, perm),
+        );
+    }
+
+    /**
+     * Checks a single permission for a role on a resource
+     * @param roleName The name of the role
+     * @param resource The resource to check
+     * @param permission The permission string
+     * @returns boolean indicating if the role has the permission
+     * @private Internal method used by can()
+     */
+    private checkSinglePermission(
+        roleName: string,
+        resource: Resource,
+        permission: Permission,
+    ): boolean {
         // Parse the permission string
         const { action, ownership, comparisonResult } =
             this.parsePermission(permission);
@@ -199,6 +229,14 @@ export class RBAC {
             } else if (comparisonResult === "false") {
                 return false;
             }
+        }
+
+        // Check if the role has the general permission (without ownership)
+        // This allows "update" permission to satisfy "update:own" check regardless of ownership
+        if (ownership && permissions.includes(action)) {
+            // If the role has the general permission, it can perform ownership-specific actions
+            // regardless of the ownership check (because general permission means "can do anything")
+            return true;
         }
 
         // Check if any of the role's permissions match the required action
@@ -253,10 +291,34 @@ export class RBAC {
      * Explains why a permission check would pass or fail
      * @param roleName The name of the role
      * @param resource The resource to check
-     * @param permission The permission string with optional ownership/group/validation results
+     * @param permission The permission string with optional ownership/group/validation results, or an array of permissions
      * @returns An explanation object with details about the permission decision
      */
     canExplain(
+        roleName: string,
+        resource: Resource,
+        permission: Permission | Permission[],
+    ): PermissionExplanation | PermissionExplanation[] {
+        // If it's an array of permissions, return an array of explanations
+        if (Array.isArray(permission)) {
+            return permission.map((perm) =>
+                this.explainSinglePermission(roleName, resource, perm),
+            );
+        }
+
+        // For a single permission, return a single explanation
+        return this.explainSinglePermission(roleName, resource, permission);
+    }
+
+    /**
+     * Explains why a single permission check would pass or fail
+     * @param roleName The name of the role
+     * @param resource The resource to check
+     * @param permission The permission string
+     * @returns An explanation object with details about the permission decision
+     * @private Internal method used by canExplain()
+     */
+    private explainSinglePermission(
         roleName: string,
         resource: Resource,
         permission: Permission,
@@ -329,6 +391,19 @@ export class RBAC {
                     details: `Role "${this.getName(roleName)}" has wildcard permission for resource "${resource}", but the ${ownership} check failed.`,
                 };
             }
+        }
+
+        // Check if the role has general permission (without ownership)
+        if (ownership && permissions.includes(action)) {
+            return {
+                granted: true,
+                reason: "GENERIC_PERMISSION_WITH_OWNERSHIP",
+                role: roleName,
+                resource,
+                action,
+                ownership,
+                details: `Role "${this.getName(roleName)}" has generic "${action}" permission for resource "${resource}", which allows ${ownership} operations regardless of ownership.`,
+            };
         }
 
         // Check if the role has the specific permission
