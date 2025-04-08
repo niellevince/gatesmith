@@ -568,4 +568,42 @@ export class RBAC {
         // Get permissions for the specific resource
         return roleDefinition.permissions[resource] || [];
     }
+
+    /**
+     * Checks if a role has a specific permission pattern for a resource
+     * without evaluating ownership conditions
+     * @param roleName The name of the role
+     * @param permissionPattern The permission pattern to check for (e.g., 'update:own')
+     * @param resource The resource to check
+     * @returns boolean indicating if the role has the permission pattern
+     */
+    has(
+        roleName: string,
+        permissionPattern: string,
+        resource: Resource,
+    ): boolean {
+        // Get permissions for the role on the resource
+        const permissions = this.getRolePermissions(roleName, resource);
+
+        // Check if the role has the wildcard permission
+        if (permissions.includes(WILDCARD_PERMISSION)) {
+            return true;
+        }
+
+        // Check if the role has the specific permission pattern
+        return permissions.some((permission) => {
+            // Direct match
+            if (permission === permissionPattern) {
+                return true;
+            }
+
+            // For cases where we're looking for 'action:own' but role has general 'action'
+            if (permissionPattern.includes(":") && !permission.includes(":")) {
+                const [action] = permissionPattern.split(":");
+                return permission === action;
+            }
+
+            return false;
+        });
+    }
 }

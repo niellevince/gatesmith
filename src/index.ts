@@ -435,3 +435,41 @@ console.log(
     "Can user read another user's user profile explanation:",
     rbac.canExplain("user", own("read", user1Id, user2Id), "users"),
 );
+
+// Add a new section for the has() method demonstration
+console.log("\n13. Using has() for permission pattern checks:");
+
+// Check if roles have specific permission patterns without evaluating ownership
+console.log(
+    "Admin has 'update' permission for posts:",
+    rbac.has("admin", "update", "posts"),
+);
+console.log(
+    "User has 'update:own' permission for posts:",
+    rbac.has("user", "update:own", "posts"),
+);
+console.log(
+    "User has general 'update' permission for posts:",
+    rbac.has("user", "update", "posts"),
+);
+console.log(
+    "Guest has 'update' permission for posts (after update):",
+    rbac.has("guest", "update", "posts"),
+);
+
+// Example usage in database query optimization
+console.log("\n14. Using has() for database query optimization (example):");
+console.log(`
+// Example pseudocode for optimized database queries:
+if (rbac.has(userRole, "read:own", "posts")) {
+  // User can only read their own posts, add owner filter to query
+  const query = { ownerId: userId, ...otherFilters };
+  return await postsCollection.find(query);
+} else if (rbac.has(userRole, "read", "posts")) {
+  // User can read all posts, no owner filter needed
+  return await postsCollection.find(otherFilters);
+} else {
+  // No permission
+  return [];
+}
+`);

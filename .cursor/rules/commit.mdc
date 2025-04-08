@@ -1,0 +1,37 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Start chat with "🤖" emoji.
+
+# Git Commit Message Format
+
+## Summary (Commit Title)
+- Use **imperative mood** (e.g., "Add", "Fix", "Refactor")
+- **Limit to 50 characters** max
+- **No trailing period**
+- **Capitalize** the first word
+
+## Description (Commit Body)
+- **Wrap lines at 72 characters**
+- Explain **what** and **why**, not **how**
+
+## Conventional Commits Style (Optional)
+Use `<type>(scope): summary`
+
+**Types**:
+- `feat`: new feature  
+- `fix`: bug fix  
+- `docs`: documentation  
+- `style`: formatting  
+- `refactor`: refactoring  
+- `test`: adding tests  
+- `chore`: maintenance tasks  
+
+## Example
+Summary:
+feat(auth): add login button to navbar
+
+Commit:
+Adds a login button to the navbar, which is visible only for unauthenticated users. This change improves the navigation experience by providing a clear call-to-action for new users to easily find the login page.

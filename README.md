@@ -234,6 +234,28 @@ rbac.can("moderator", "read", "posts"); // true
 rbac.can("moderator", "delete", "posts"); // false - not in permissions list
 ```
 
+### Permission Pattern Checks with `has()`
+
+```typescript
+// Check if a role has a specific permission pattern without evaluating ownership
+rbac.has("admin", "update", "posts"); // true
+rbac.has("user", "update:own", "posts"); // true
+rbac.has("user", "update", "posts"); // false
+
+// Useful for database query optimization
+if (rbac.has(userRole, "read:own", "posts")) {
+    // User can only read their own posts, add owner filter to query
+    const query = { ownerId: userId, ...otherFilters };
+    return await postsCollection.find(query);
+} else if (rbac.has(userRole, "read", "posts")) {
+    // User can read all posts, no owner filter needed
+    return await postsCollection.find(otherFilters);
+} else {
+    // No permission
+    return [];
+}
+```
+
 ### Role Management
 
 ```typescript
