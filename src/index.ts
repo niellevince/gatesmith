@@ -85,14 +85,14 @@ const roles: RolesConfig = {
 /**
  * Helper function for better logging
  */
-function logPermissionCheck(
-    description: string,
-    result: boolean,
-    expected: boolean,
-) {
-    const status = result === expected ? "✅" : "❌";
-    console.log(`${status} ${description}: ${result}, expected=${expected}`);
-}
+// function logPermissionCheck(
+//     description: string,
+//     result: boolean,
+//     expected: boolean,
+// ) {
+//     const status = result === expected ? "✅" : "❌";
+//     console.log(`${status} ${description}: ${result}, expected=${expected}`);
+// }
 
 // Create RBAC instance
 const rbac = new RBAC(roles);
@@ -139,7 +139,7 @@ console.log(
 // Group membership tests
 console.log("\n3. Group Membership Tests:");
 const groupMembers = ["user1", "user3", "user5"];
-const nonGroupMembers = ["user2", "user4"];
+// const nonGroupMembers = ["user2", "user4"];
 
 // User in the group can update the group chat
 console.log(
@@ -437,35 +437,35 @@ console.log(
 );
 
 // Add a new section for the has() method demonstration
-console.log("\n13. Using has() for permission pattern checks:");
+console.log("\n13. Using can() for permission pattern checks:");
 
 // Check if roles have specific permission patterns without evaluating ownership
 console.log(
     "Admin has 'update' permission for posts:",
-    rbac.has("admin", "update", "posts"),
+    rbac.can("admin", "update", "posts"),
 );
 console.log(
     "User has 'update:own' permission for posts:",
-    rbac.has("user", "update:own", "posts"),
+    rbac.can("user", "update:own", "posts"),
 );
 console.log(
     "User has general 'update' permission for posts:",
-    rbac.has("user", "update", "posts"),
+    rbac.can("user", "update", "posts"),
 );
 console.log(
     "Guest has 'update' permission for posts (after update):",
-    rbac.has("guest", "update", "posts"),
+    rbac.can("guest", "update", "posts"),
 );
 
 // Example usage in database query optimization
-console.log("\n14. Using has() for database query optimization (example):");
+console.log("\n14. Using can() for database query optimization (example):");
 console.log(`
 // Example pseudocode for optimized database queries:
-if (rbac.has(userRole, "read:own", "posts")) {
+if (rbac.can(userRole, "read:own", "posts")) {
   // User can only read their own posts, add owner filter to query
   const query = { ownerId: userId, ...otherFilters };
   return await postsCollection.find(query);
-} else if (rbac.has(userRole, "read", "posts")) {
+} else if (rbac.can(userRole, "read", "posts")) {
   // User can read all posts, no owner filter needed
   return await postsCollection.find(otherFilters);
 } else {

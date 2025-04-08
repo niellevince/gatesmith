@@ -435,42 +435,42 @@ describe("RBAC", () => {
         });
     });
 
-    describe("Permission Pattern Checks with has()", () => {
+    describe("Permission Pattern Checks with can()", () => {
         it("should check if role has a specific permission pattern", () => {
             const rbac = new RBAC(setupTestRoles());
 
             // Admin has general update permission
-            expect(rbac.has("admin", "update", "posts")).toBe(true);
+            expect(rbac.can("admin", "update", "posts")).toBe(true);
 
             // User has update:own but not general update
-            expect(rbac.has("user", "update:own", "posts")).toBe(true);
-            expect(rbac.has("user", "update", "posts")).toBe(false);
+            expect(rbac.can("user", "update:own", "posts")).toBe(true);
+            expect(rbac.can("user", "update", "posts")).toBe(false);
 
             // Guest has read but not update
-            expect(rbac.has("guest", "read", "posts")).toBe(true);
-            expect(rbac.has("guest", "update", "posts")).toBe(false);
+            expect(rbac.can("guest", "read", "posts")).toBe(true);
+            expect(rbac.can("guest", "update", "posts")).toBe(false);
         });
 
         it("should handle wildcard permissions correctly", () => {
             const rbac = new RBAC(setupTestRoles());
 
             // Superadmin has wildcard on posts
-            expect(rbac.has("superadmin", "anyaction", "posts")).toBe(true);
-            expect(rbac.has("superadmin", "update", "posts")).toBe(true);
-            expect(rbac.has("superadmin", "update:own", "posts")).toBe(true);
+            expect(rbac.can("superadmin", "anyaction", "posts")).toBe(true);
+            expect(rbac.can("superadmin", "update", "posts")).toBe(true);
+            expect(rbac.can("superadmin", "update:own", "posts")).toBe(true);
 
             // Admin doesn't have wildcard
-            expect(rbac.has("admin", "nonexistent", "posts")).toBe(false);
+            expect(rbac.can("admin", "nonexistent", "posts")).toBe(false);
         });
 
         it("should handle general vs specific permission types correctly", () => {
             const rbac = new RBAC(setupTestRoles());
 
             // If looking for action:own but role has general action
-            expect(rbac.has("admin", "update:own", "posts")).toBe(true);
+            expect(rbac.can("admin", "update:own", "posts")).toBe(true);
 
             // If looking for general action but role only has action:own
-            expect(rbac.has("user", "update", "posts")).toBe(false);
+            expect(rbac.can("user", "update", "posts")).toBe(false);
         });
     });
 });

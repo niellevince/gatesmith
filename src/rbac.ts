@@ -223,12 +223,13 @@ export class RBAC {
                 return true;
             }
 
-            // For ownership/group/validation checks, we need to check the comparison result
-            if (comparisonResult === "true") {
-                return true;
-            } else if (comparisonResult === "false") {
-                return false;
+            // For ownership/group/validation checks with pipe, check the comparison result
+            if (comparisonResult !== undefined) {
+                return comparisonResult === "true";
             }
+
+            // If ownership is specified without a pipe, treat it as true
+            return true;
         }
 
         // Check if the role has the general permission (without ownership)
@@ -260,11 +261,6 @@ export class RBAC {
                 return false;
             }
 
-            // If required has ownership but granted doesn't, not a match
-            if (ownership && !parsedP.ownership) {
-                return false;
-            }
-
             // If both have ownership types and they don't match, not a match
             if (
                 ownership &&
@@ -281,11 +277,12 @@ export class RBAC {
             return false;
         }
 
-        // For pre-evaluated permissions (using helper functions), check the comparison result
-        if (ownership && comparisonResult !== undefined) {
+        // For pre-evaluated permissions with pipe (e.g., from own()), check the comparison result
+        if (comparisonResult !== undefined) {
             return comparisonResult === "true";
         }
 
+        // If ownership is specified without a pipe (e.g., 'action:own'), treat it as true
         return true;
     }
 
@@ -371,28 +368,41 @@ export class RBAC {
                 };
             }
 
-            // For ownership checks with wildcard, check the comparison result
-            if (comparisonResult === "true") {
-                return {
-                    granted: true,
-                    reason: "WILDCARD_WITH_OWNERSHIP",
-                    role: roleName,
-                    resource,
-                    action,
-                    ownership,
-                    details: `Role "${this.getName(roleName)}" has wildcard permission for resource "${resource}" and ownership check passed.`,
-                };
-            } else if (comparisonResult === "false") {
-                return {
-                    granted: false,
-                    reason: "OWNERSHIP_CHECK_FAILED",
-                    role: roleName,
-                    resource,
-                    action,
-                    ownership,
-                    details: `Role "${this.getName(roleName)}" has wildcard permission for resource "${resource}", but the ${ownership} check failed.`,
-                };
+            // For ownership checks with pipe, check the comparison result
+            if (comparisonResult !== undefined) {
+                if (comparisonResult === "true") {
+                    return {
+                        granted: true,
+                        reason: "WILDCARD_WITH_OWNERSHIP",
+                        role: roleName,
+                        resource,
+                        action,
+                        ownership,
+                        details: `Role "${this.getName(roleName)}" has wildcard permission for resource "${resource}" and ownership check passed.`,
+                    };
+                } else {
+                    return {
+                        granted: false,
+                        reason: "OWNERSHIP_CHECK_FAILED",
+                        role: roleName,
+                        resource,
+                        action,
+                        ownership,
+                        details: `Role "${this.getName(roleName)}" has wildcard permission for resource "${resource}", but the ${ownership} check failed.`,
+                    };
+                }
             }
+
+            // If ownership is specified without pipe, treat it as granted
+            return {
+                granted: true,
+                reason: "WILDCARD_WITH_OWNERSHIP_DEFAULT",
+                role: roleName,
+                resource,
+                action,
+                ownership,
+                details: `Role "${this.getName(roleName)}" has wildcard permission for resource "${resource}" and default ownership is assumed to be granted.`,
+            };
         }
 
         // Check if the role has general permission (without ownership)
@@ -421,11 +431,6 @@ export class RBAC {
             if (parsedP.action === action && parsedP.ownership === ownership) {
                 return true;
             }
-
-            // Match with broader permission (role has ownership but request doesn't need it)
-            // This is intentionally removed to fix the bug
-            // If we're checking a general permission but the role only has specific permissions,
-            // then it's not a match
 
             return false;
         });
@@ -462,7 +467,7 @@ export class RBAC {
             };
         }
 
-        // If we have a matching permission but need to check ownership
+        // If we have a matching permission with pipe, check the comparison result
         if (ownership && comparisonResult !== undefined) {
             if (comparisonResult === "true") {
                 return {
@@ -485,6 +490,19 @@ export class RBAC {
                     details: `Role "${this.getName(roleName)}" has permission to "${action}" on resource "${resource}", but the ${ownership} check failed.`,
                 };
             }
+        }
+
+        // For permissions with ownership but without pipe, it's always granted
+        if (ownership) {
+            return {
+                granted: true,
+                reason: "PERMISSION_WITH_OWNERSHIP_DEFAULT",
+                role: roleName,
+                resource,
+                action,
+                ownership,
+                details: `Role "${this.getName(roleName)}" has permission to "${action}" on resource "${resource}" with ${ownership} ownership (default granted).`,
+            };
         }
 
         // Simple permission granted
@@ -567,43 +585,5 @@ export class RBAC {
 
         // Get permissions for the specific resource
         return roleDefinition.permissions[resource] || [];
-    }
-
-    /**
-     * Checks if a role has a specific permission pattern for a resource
-     * without evaluating ownership conditions
-     * @param roleName The name of the role
-     * @param permissionPattern The permission pattern to check for (e.g., 'update:own')
-     * @param resource The resource to check
-     * @returns boolean indicating if the role has the permission pattern
-     */
-    has(
-        roleName: string,
-        permissionPattern: string,
-        resource: Resource,
-    ): boolean {
-        // Get permissions for the role on the resource
-        const permissions = this.getRolePermissions(roleName, resource);
-
-        // Check if the role has the wildcard permission
-        if (permissions.includes(WILDCARD_PERMISSION)) {
-            return true;
-        }
-
-        // Check if the role has the specific permission pattern
-        return permissions.some((permission) => {
-            // Direct match
-            if (permission === permissionPattern) {
-                return true;
-            }
-
-            // For cases where we're looking for 'action:own' but role has general 'action'
-            if (permissionPattern.includes(":") && !permission.includes(":")) {
-                const [action] = permissionPattern.split(":");
-                return permission === action;
-            }
-
-            return false;
-        });
     }
 }

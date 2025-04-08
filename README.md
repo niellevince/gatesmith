@@ -19,6 +19,7 @@ Gatesmith is a lightweight, flexible permission system that combines the simplic
 - Custom validation functions for complex permission rules
 - Permission explanation mechanism to understand why access was granted or denied
 - Runtime role configuration updates to modify permissions without restarting
+- Simplified ownership assumption: 'action:own' automatically passes unless explicitly set to false
 
 ## Installation
 
@@ -168,6 +169,10 @@ const otherPostId = "456"; // Post owned by someone else
 const groupMembers = ["123", "456", "789"]; // User is a member of this group
 
 // Check ownership (returns an evaluated permission string)
+// If using just 'update:own', ownership is assumed to be true without validation
+rbac.can("user", "update:own", "posts"); // true (ownership is assumed)
+
+// For actual ownership validation, use the own() helper
 rbac.can("user", own("update", userId, postOwnerId), "posts"); // true
 rbac.can("user", own("update", userId, otherPostId), "posts"); // false
 
@@ -234,20 +239,16 @@ rbac.can("moderator", "read", "posts"); // true
 rbac.can("moderator", "delete", "posts"); // false - not in permissions list
 ```
 
-### Permission Pattern Checks with `has()`
+### Database Query Optimization with Permission Checks
 
 ```typescript
-// Check if a role has a specific permission pattern without evaluating ownership
-rbac.has("admin", "update", "posts"); // true
-rbac.has("user", "update:own", "posts"); // true
-rbac.has("user", "update", "posts"); // false
-
+// Check if a role has a specific permission pattern
 // Useful for database query optimization
-if (rbac.has(userRole, "read:own", "posts")) {
+if (rbac.can(userRole, "read:own", "posts")) {
     // User can only read their own posts, add owner filter to query
     const query = { ownerId: userId, ...otherFilters };
     return await postsCollection.find(query);
-} else if (rbac.has(userRole, "read", "posts")) {
+} else if (rbac.can(userRole, "read", "posts")) {
     // User can read all posts, no owner filter needed
     return await postsCollection.find(otherFilters);
 } else {
@@ -397,8 +398,13 @@ rbac.can(
 
 // The helper functions evaluate the comparison and return:
 // - 'update:own|true' if userId === resourceId
+// - 'update:own|false' if userId !== resourceId
 // - 'update:group|true' if userId is in memberIds
 // - 'export:val|true' if the validation function returns true
+
+// Without a helper function:
+// - 'update:own' is assumed to be true - permission is granted without validation
+// - Only when using a helper that returns '|false' will the permission be denied
 ```
 
 ## Contributing
