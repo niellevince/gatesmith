@@ -257,6 +257,51 @@ export class RBAC {
     }
 
     /**
+     * Get all permissions for a role across all resources
+     * @param roleName The role to get all permissions for
+     * @returns Object mapping resources to their permissions
+     */
+    getAllResourcePermissions(
+        roleName: string,
+    ): Record<Resource, Permission[]> {
+        // Check if role exists
+        if (!this.rolesConfig[roleName]) {
+            return {};
+        }
+
+        const result: Record<Resource, Permission[]> = {};
+
+        // Get all resources from this role and its inherited roles
+        const allResources = new Set<Resource>();
+
+        // Add direct resources
+        if (this.rolesConfig[roleName].permissions) {
+            Object.keys(this.rolesConfig[roleName].permissions).forEach(
+                (resource) => {
+                    allResources.add(resource);
+                },
+            );
+        }
+
+        // Add resources from parent roles
+        const parentRoles = this.getParentRoles(roleName);
+        parentRoles.forEach((parentRole) => {
+            const parentPermissions =
+                this.getAllResourcePermissions(parentRole);
+            Object.keys(parentPermissions).forEach((resource) => {
+                allResources.add(resource);
+            });
+        });
+
+        // Get permissions for each resource
+        allResources.forEach((resource) => {
+            result[resource] = this.getAllPermissions(roleName, resource);
+        });
+
+        return result;
+    }
+
+    /**
      * Checks if a role can perform an action on a resource
      * Simplified syntax: can('user', 'update', 'posts')
      * With helpers:
