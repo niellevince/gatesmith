@@ -7,7 +7,7 @@ export type Permission = string; // e.g. 'create', 'read', 'update', 'delete', '
 export type Resource = string; // e.g. 'posts', 'users', etc.
 
 // Special permission constants
-export const WILDCARD_PERMISSION = "*";
+export const WILDCARD_PERMISSION = '*';
 
 export type PermissionAction = string;
 export type ValidatorFunction = () => boolean; // Custom validator function type
@@ -24,20 +24,12 @@ export interface PermissionExplanation {
 }
 
 // Helper functions for permission checks with immediate evaluation
-export function own(
-    action: string,
-    userId: string,
-    resourceOwnerId: string,
-): string {
+export function own(action: string, userId: string, resourceOwnerId: string): string {
     const isOwner = userId === resourceOwnerId;
     return `${action}:own|${isOwner}`;
 }
 
-export function group(
-    action: string,
-    userId: string,
-    groupMemberIds: string[],
-): string {
+export function group(action: string, userId: string, groupMemberIds: string[]): string {
     const isMember = groupMemberIds.includes(userId);
     return `${action}:group|${isMember}`;
 }
@@ -70,14 +62,14 @@ export type RolesConfig = Record<string, RoleConfig>;
 export class RBACError extends Error {
     constructor(message: string) {
         super(message);
-        this.name = "RBACError";
+        this.name = 'RBACError';
     }
 }
 
 export class RoleNotFoundError extends RBACError {
     constructor(roleName: string) {
         super(`Role "${roleName}" not found`);
-        this.name = "RoleNotFoundError";
+        this.name = 'RoleNotFoundError';
     }
 }
 
@@ -107,65 +99,31 @@ export class RBAC {
 
             // Deep merge permissions for roles that exist in both
             for (const roleName in newRoles) {
-                if (
-                    this.rolesConfig[roleName] &&
-                    this.rolesConfig[roleName].permissions &&
-                    newRoles[roleName].permissions
-                ) {
+                if (this.rolesConfig[roleName] && this.rolesConfig[roleName].permissions && newRoles[roleName].permissions) {
                     // Preserve existing role properties like name if not provided in new config
-                    if (
-                        !newRoles[roleName].name &&
-                        this.rolesConfig[roleName].name
-                    ) {
-                        newRoles[roleName].name =
-                            this.rolesConfig[roleName].name;
+                    if (!newRoles[roleName].name && this.rolesConfig[roleName].name) {
+                        newRoles[roleName].name = this.rolesConfig[roleName].name;
                     }
 
                     // Merge inheritance if it exists
-                    if (
-                        !newRoles[roleName].inherits &&
-                        this.rolesConfig[roleName].inherits
-                    ) {
-                        newRoles[roleName].inherits =
-                            this.rolesConfig[roleName].inherits;
-                    } else if (
-                        newRoles[roleName].inherits &&
-                        this.rolesConfig[roleName].inherits
-                    ) {
+                    if (!newRoles[roleName].inherits && this.rolesConfig[roleName].inherits) {
+                        newRoles[roleName].inherits = this.rolesConfig[roleName].inherits;
+                    } else if (newRoles[roleName].inherits && this.rolesConfig[roleName].inherits) {
                         // Combine inheritance lists without duplicates
-                        newRoles[roleName].inherits = [
-                            ...new Set([
-                                ...this.rolesConfig[roleName].inherits!,
-                                ...newRoles[roleName].inherits,
-                            ]),
-                        ];
+                        newRoles[roleName].inherits = [...new Set([...this.rolesConfig[roleName].inherits!, ...newRoles[roleName].inherits])];
                     }
 
                     // Merge permissions for existing resources
-                    for (const resource in this.rolesConfig[roleName]
-                        .permissions) {
+                    for (const resource in this.rolesConfig[roleName].permissions) {
                         if (newRoles[roleName].permissions[resource]) {
                             // If resource exists in both, combine the permissions (avoiding duplicates)
-                            const existingPermissions =
-                                this.rolesConfig[roleName].permissions[
-                                    resource
-                                ];
-                            const newPermissions =
-                                newRoles[roleName].permissions[resource];
+                            const existingPermissions = this.rolesConfig[roleName].permissions[resource];
+                            const newPermissions = newRoles[roleName].permissions[resource];
 
-                            newRoles[roleName].permissions[resource] = [
-                                ...new Set([
-                                    ...existingPermissions,
-                                    ...newPermissions,
-                                ]),
-                            ];
+                            newRoles[roleName].permissions[resource] = [...new Set([...existingPermissions, ...newPermissions])];
                         } else {
                             // Preserve existing resources not in the new config
-                            newRoles[roleName].permissions[resource] = [
-                                ...this.rolesConfig[roleName].permissions[
-                                    resource
-                                ],
-                            ];
+                            newRoles[roleName].permissions[resource] = [...this.rolesConfig[roleName].permissions[resource]];
                         }
                     }
                 }
@@ -223,11 +181,7 @@ export class RBAC {
      * @param visitedRoles Set of roles already visited (to prevent circular inheritance)
      * @returns Array of permissions
      */
-    getAllPermissions(
-        roleName: string,
-        resource?: Resource,
-        visitedRoles: Set<string> = new Set(),
-    ): Permission[] {
+    getAllPermissions(roleName: string, resource?: Resource, visitedRoles: Set<string> = new Set()): Permission[] {
         // Base case: role doesn't exist
         if (!this.rolesConfig[roleName]) {
             return [];
@@ -248,9 +202,7 @@ export class RBAC {
         const parentRoles = this.getParentRoles(roleName);
 
         // Recursively get permissions from parent roles
-        const inheritedPermissions = parentRoles.flatMap((parentRole) =>
-            this.getAllPermissions(parentRole, resource, visitedRoles),
-        );
+        const inheritedPermissions = parentRoles.flatMap((parentRole) => this.getAllPermissions(parentRole, resource, visitedRoles));
 
         // Combine and deduplicate permissions
         return [...new Set([...directPermissions, ...inheritedPermissions])];
@@ -261,9 +213,7 @@ export class RBAC {
      * @param roleName The role to get all permissions for
      * @returns Object mapping resources to their permissions
      */
-    getAllResourcePermissions(
-        roleName: string,
-    ): Record<Resource, Permission[]> {
+    getAllResourcePermissions(roleName: string): Record<Resource, Permission[]> {
         // Check if role exists
         if (!this.rolesConfig[roleName]) {
             return {};
@@ -276,18 +226,15 @@ export class RBAC {
 
         // Add direct resources
         if (this.rolesConfig[roleName].permissions) {
-            Object.keys(this.rolesConfig[roleName].permissions).forEach(
-                (resource) => {
-                    allResources.add(resource);
-                },
-            );
+            Object.keys(this.rolesConfig[roleName].permissions).forEach((resource) => {
+                allResources.add(resource);
+            });
         }
 
         // Add resources from parent roles
         const parentRoles = this.getParentRoles(roleName);
         parentRoles.forEach((parentRole) => {
-            const parentPermissions =
-                this.getAllResourcePermissions(parentRole);
+            const parentPermissions = this.getAllResourcePermissions(parentRole);
             Object.keys(parentPermissions).forEach((resource) => {
                 allResources.add(resource);
             });
@@ -316,20 +263,12 @@ export class RBAC {
      * @param resource The resource to check
      * @returns boolean indicating if the role has the permission
      */
-    can(
-        roleName: string,
-        permission: Permission | Permission[],
-        resource: Resource,
-    ): boolean {
+    can(roleName: string, permission: Permission | Permission[], resource: Resource): boolean {
         // Convert single permission to array for consistent handling
-        const permissions = Array.isArray(permission)
-            ? permission
-            : [permission];
+        const permissions = Array.isArray(permission) ? permission : [permission];
 
         // Return true if any of the permissions are granted
-        return permissions.some((perm) =>
-            this.checkSinglePermission(roleName, perm, resource),
-        );
+        return permissions.some((perm) => this.checkSinglePermission(roleName, perm, resource));
     }
 
     /**
@@ -340,19 +279,14 @@ export class RBAC {
      * @returns boolean indicating if the role has the permission
      * @private Internal method used by can()
      */
-    private checkSinglePermission(
-        roleName: string,
-        permission: Permission,
-        resource: Resource,
-    ): boolean {
+    private checkSinglePermission(roleName: string, permission: Permission, resource: Resource): boolean {
         // Check if role exists
         if (!this.rolesConfig[roleName]) {
             return false;
         }
 
         // Parse the permission string
-        const { action, ownership, comparisonResult } =
-            this.parsePermission(permission);
+        const { action, ownership, comparisonResult } = this.parsePermission(permission);
 
         // Get all permissions for the role on the resource, including inherited
         const permissions = this.getAllPermissions(roleName, resource);
@@ -366,7 +300,7 @@ export class RBAC {
 
             // For ownership/group/validation checks with pipe, check the comparison result
             if (comparisonResult !== undefined) {
-                return comparisonResult === "true";
+                return comparisonResult === 'true';
             }
 
             // If ownership is specified without a pipe, treat it as true
@@ -403,11 +337,7 @@ export class RBAC {
             }
 
             // If both have ownership types and they don't match, not a match
-            if (
-                ownership &&
-                parsedP.ownership &&
-                ownership !== parsedP.ownership
-            ) {
+            if (ownership && parsedP.ownership && ownership !== parsedP.ownership) {
                 return false;
             }
 
@@ -420,7 +350,7 @@ export class RBAC {
 
         // For pre-evaluated permissions with pipe (e.g., from own()), check the comparison result
         if (comparisonResult !== undefined) {
-            return comparisonResult === "true";
+            return comparisonResult === 'true';
         }
 
         // If ownership is specified without a pipe (e.g., 'action:own'), treat it as true
@@ -434,16 +364,10 @@ export class RBAC {
      * @param resource The resource to check
      * @returns An explanation object with details about the permission decision
      */
-    canExplain(
-        roleName: string,
-        permission: Permission | Permission[],
-        resource: Resource,
-    ): PermissionExplanation | PermissionExplanation[] {
+    canExplain(roleName: string, permission: Permission | Permission[], resource: Resource): PermissionExplanation | PermissionExplanation[] {
         // If it's an array of permissions, return an array of explanations
         if (Array.isArray(permission)) {
-            return permission.map((perm) =>
-                this.explainSinglePermission(roleName, perm, resource),
-            );
+            return permission.map((perm) => this.explainSinglePermission(roleName, perm, resource));
         }
 
         // For a single permission, return a single explanation
@@ -458,16 +382,12 @@ export class RBAC {
      * @returns An explanation object with details about the permission decision
      * @private Internal method used by canExplain()
      */
-    private explainSinglePermission(
-        roleName: string,
-        permission: Permission,
-        resource: Resource,
-    ): PermissionExplanation {
+    private explainSinglePermission(roleName: string, permission: Permission, resource: Resource): PermissionExplanation {
         // Check if the role exists
         if (!this.rolesConfig[roleName]) {
             return {
                 granted: false,
-                reason: "ROLE_NOT_FOUND",
+                reason: 'ROLE_NOT_FOUND',
                 role: roleName,
                 resource,
                 action: permission,
@@ -476,8 +396,7 @@ export class RBAC {
         }
 
         // Parse the permission string
-        const { action, ownership, comparisonResult } =
-            this.parsePermission(permission);
+        const { action, ownership, comparisonResult } = this.parsePermission(permission);
 
         // Get all permissions for the role on the resource, including inherited
         const permissions = this.getAllPermissions(roleName, resource);
@@ -486,7 +405,7 @@ export class RBAC {
         if (permissions.length === 0) {
             return {
                 granted: false,
-                reason: "RESOURCE_NOT_ALLOWED",
+                reason: 'RESOURCE_NOT_ALLOWED',
                 role: roleName,
                 resource,
                 action,
@@ -501,7 +420,7 @@ export class RBAC {
             if (!ownership) {
                 return {
                     granted: true,
-                    reason: "WILDCARD_PERMISSION",
+                    reason: 'WILDCARD_PERMISSION',
                     role: roleName,
                     resource,
                     action,
@@ -511,10 +430,10 @@ export class RBAC {
 
             // For ownership checks with pipe, check the comparison result
             if (comparisonResult !== undefined) {
-                if (comparisonResult === "true") {
+                if (comparisonResult === 'true') {
                     return {
                         granted: true,
-                        reason: "WILDCARD_WITH_OWNERSHIP",
+                        reason: 'WILDCARD_WITH_OWNERSHIP',
                         role: roleName,
                         resource,
                         action,
@@ -524,7 +443,7 @@ export class RBAC {
                 } else {
                     return {
                         granted: false,
-                        reason: "OWNERSHIP_CHECK_FAILED",
+                        reason: 'OWNERSHIP_CHECK_FAILED',
                         role: roleName,
                         resource,
                         action,
@@ -537,7 +456,7 @@ export class RBAC {
             // If ownership is specified without pipe, treat it as granted
             return {
                 granted: true,
-                reason: "WILDCARD_WITH_OWNERSHIP_DEFAULT",
+                reason: 'WILDCARD_WITH_OWNERSHIP_DEFAULT',
                 role: roleName,
                 resource,
                 action,
@@ -550,7 +469,7 @@ export class RBAC {
         if (ownership && permissions.includes(action)) {
             return {
                 granted: true,
-                reason: "GENERIC_PERMISSION_WITH_OWNERSHIP",
+                reason: 'GENERIC_PERMISSION_WITH_OWNERSHIP',
                 role: roleName,
                 resource,
                 action,
@@ -586,7 +505,7 @@ export class RBAC {
             if (!ownership && hasOwnershipPermissions) {
                 return {
                     granted: false,
-                    reason: "REQUIRES_OWNERSHIP",
+                    reason: 'REQUIRES_OWNERSHIP',
                     role: roleName,
                     resource,
                     action,
@@ -597,23 +516,21 @@ export class RBAC {
 
             return {
                 granted: false,
-                reason: "ACTION_NOT_ALLOWED",
+                reason: 'ACTION_NOT_ALLOWED',
                 role: roleName,
                 resource,
                 action,
                 ownership,
-                details: `Role "${this.getName(roleName)}" does not have permission to "${action}" on resource "${resource}"${
-                    ownership ? ` with ${ownership} ownership` : ""
-                }.`,
+                details: `Role "${this.getName(roleName)}" does not have permission to "${action}" on resource "${resource}"${ownership ? ` with ${ownership} ownership` : ''}.`,
             };
         }
 
         // If we have a matching permission with pipe, check the comparison result
         if (ownership && comparisonResult !== undefined) {
-            if (comparisonResult === "true") {
+            if (comparisonResult === 'true') {
                 return {
                     granted: true,
-                    reason: "PERMISSION_WITH_OWNERSHIP",
+                    reason: 'PERMISSION_WITH_OWNERSHIP',
                     role: roleName,
                     resource,
                     action,
@@ -623,7 +540,7 @@ export class RBAC {
             } else {
                 return {
                     granted: false,
-                    reason: "OWNERSHIP_CHECK_FAILED",
+                    reason: 'OWNERSHIP_CHECK_FAILED',
                     role: roleName,
                     resource,
                     action,
@@ -637,7 +554,7 @@ export class RBAC {
         if (ownership) {
             return {
                 granted: true,
-                reason: "PERMISSION_WITH_OWNERSHIP_DEFAULT",
+                reason: 'PERMISSION_WITH_OWNERSHIP_DEFAULT',
                 role: roleName,
                 resource,
                 action,
@@ -649,14 +566,12 @@ export class RBAC {
         // Simple permission granted
         return {
             granted: true,
-            reason: "PERMISSION_GRANTED",
+            reason: 'PERMISSION_GRANTED',
             role: roleName,
             resource,
             action,
             ownership,
-            details: `Role "${this.getName(roleName)}" has permission to "${action}" on resource "${resource}"${
-                ownership ? ` with ${ownership} ownership` : ""
-            }.`,
+            details: `Role "${this.getName(roleName)}" has permission to "${action}" on resource "${resource}"${ownership ? ` with ${ownership} ownership` : ''}.`,
         };
     }
 
@@ -683,12 +598,12 @@ export class RBAC {
         comparisonResult?: string;
     } {
         // Check if it's a complex permission with results (from helper functions)
-        if (permission.includes("|")) {
+        if (permission.includes('|')) {
             // Format: "action:ownership|result" (e.g., "update:own|true" or "update:group|false")
-            const [actionPart, resultPart] = permission.split("|");
+            const [actionPart, resultPart] = permission.split('|');
 
-            if (actionPart.includes(":")) {
-                const [action, ownership] = actionPart.split(":");
+            if (actionPart.includes(':')) {
+                const [action, ownership] = actionPart.split(':');
                 return { action, ownership, comparisonResult: resultPart };
             }
 
@@ -697,9 +612,9 @@ export class RBAC {
         }
 
         // Check if it's an ownership-qualified permission without result
-        if (permission.includes(":")) {
+        if (permission.includes(':')) {
             // Format: "action:ownership" (e.g., "update:own")
-            const [action, ownership] = permission.split(":");
+            const [action, ownership] = permission.split(':');
             return { action, ownership };
         }
 
@@ -711,10 +626,7 @@ export class RBAC {
      * Private method to get permissions for a role on a specific resource
      * Gets only direct permissions, not inherited ones
      */
-    private getRolePermissions(
-        roleName: string,
-        resource?: Resource,
-    ): Permission[] {
+    private getRolePermissions(roleName: string, resource?: Resource): Permission[] {
         // Check if the role exists
         if (!this.rolesConfig[roleName]) {
             return [];
@@ -738,11 +650,7 @@ export class RBAC {
      * @param visitedRoles Set of roles already visited (to prevent circular inheritance)
      * @returns boolean indicating if roleName inherits from parentRoleName
      */
-    inheritsFrom(
-        roleName: string,
-        parentRoleName: string,
-        visitedRoles: Set<string> = new Set(),
-    ): boolean {
+    inheritsFrom(roleName: string, parentRoleName: string, visitedRoles: Set<string> = new Set()): boolean {
         // First check if both roles exist
         if (!this.rolesConfig[roleName] || !this.rolesConfig[parentRoleName]) {
             return false;
@@ -770,8 +678,6 @@ export class RBAC {
         }
 
         // Recursively check each parent
-        return directParents.some((parent) =>
-            this.inheritsFrom(parent, parentRoleName, visitedRoles),
-        );
+        return directParents.some((parent) => this.inheritsFrom(parent, parentRoleName, visitedRoles));
     }
 }
