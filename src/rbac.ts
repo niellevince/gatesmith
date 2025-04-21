@@ -61,9 +61,25 @@ export interface RoleConfig {
     name?: string; // Display name for the role
     permissions: ResourcePermissions;
     description?: string; // Optional description of the role
+    inherits?: string[]; // Add role inheritance property
 }
 
 export type RolesConfig = Record<string, RoleConfig>;
+
+// Error types for improved error handling
+export class RBACError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = "RBACError";
+    }
+}
+
+export class RoleNotFoundError extends RBACError {
+    constructor(roleName: string) {
+        super(`Role "${roleName}" not found`);
+        this.name = "RoleNotFoundError";
+    }
+}
 
 /**
  * RBAC Class for role-based permission management
@@ -103,6 +119,26 @@ export class RBAC {
                     ) {
                         newRoles[roleName].name =
                             this.rolesConfig[roleName].name;
+                    }
+
+                    // Merge inheritance if it exists
+                    if (
+                        !newRoles[roleName].inherits &&
+                        this.rolesConfig[roleName].inherits
+                    ) {
+                        newRoles[roleName].inherits =
+                            this.rolesConfig[roleName].inherits;
+                    } else if (
+                        newRoles[roleName].inherits &&
+                        this.rolesConfig[roleName].inherits
+                    ) {
+                        // Combine inheritance lists without duplicates
+                        newRoles[roleName].inherits = [
+                            ...new Set([
+                                ...this.rolesConfig[roleName].inherits!,
+                                ...newRoles[roleName].inherits,
+                            ]),
+                        ];
                     }
 
                     // Merge permissions for existing resources
@@ -166,6 +202,61 @@ export class RBAC {
     }
 
     /**
+     * Gets a role's parent roles (roles it inherits from)
+     * @param roleName The role name to check
+     * @returns Array of parent role names or empty array if none
+     */
+    getParentRoles(roleName: string): string[] {
+        const roleConfig = this.rolesConfig[roleName];
+
+        if (!roleConfig || !roleConfig.inherits) {
+            return [];
+        }
+
+        return roleConfig.inherits;
+    }
+
+    /**
+     * Get all permissions for a role including inherited permissions
+     * @param roleName The role to get permissions for
+     * @param resource Optional resource to filter by
+     * @param visitedRoles Set of roles already visited (to prevent circular inheritance)
+     * @returns Array of permissions
+     */
+    getAllPermissions(
+        roleName: string,
+        resource?: Resource,
+        visitedRoles: Set<string> = new Set(),
+    ): Permission[] {
+        // Base case: role doesn't exist
+        if (!this.rolesConfig[roleName]) {
+            return [];
+        }
+
+        // Check for circular inheritance
+        if (visitedRoles.has(roleName)) {
+            return []; // Skip this role if already visited
+        }
+
+        // Mark this role as visited
+        visitedRoles.add(roleName);
+
+        // Get direct permissions for this role
+        const directPermissions = this.getRolePermissions(roleName, resource);
+
+        // Get inherited permissions
+        const parentRoles = this.getParentRoles(roleName);
+
+        // Recursively get permissions from parent roles
+        const inheritedPermissions = parentRoles.flatMap((parentRole) =>
+            this.getAllPermissions(parentRole, resource, visitedRoles),
+        );
+
+        // Combine and deduplicate permissions
+        return [...new Set([...directPermissions, ...inheritedPermissions])];
+    }
+
+    /**
      * Checks if a role can perform an action on a resource
      * Simplified syntax: can('user', 'update', 'posts')
      * With helpers:
@@ -209,12 +300,17 @@ export class RBAC {
         permission: Permission,
         resource: Resource,
     ): boolean {
+        // Check if role exists
+        if (!this.rolesConfig[roleName]) {
+            return false;
+        }
+
         // Parse the permission string
         const { action, ownership, comparisonResult } =
             this.parsePermission(permission);
 
-        // Get permissions for the role on the resource
-        const permissions = this.getRolePermissions(roleName, resource);
+        // Get all permissions for the role on the resource, including inherited
+        const permissions = this.getAllPermissions(roleName, resource);
 
         // Check for wildcard permission first (optimization)
         if (permissions.includes(WILDCARD_PERMISSION)) {
@@ -338,8 +434,8 @@ export class RBAC {
         const { action, ownership, comparisonResult } =
             this.parsePermission(permission);
 
-        // Get permissions for the role on the resource
-        const permissions = this.getRolePermissions(roleName, resource);
+        // Get all permissions for the role on the resource, including inherited
+        const permissions = this.getAllPermissions(roleName, resource);
 
         // Check if the resource exists for this role
         if (permissions.length === 0) {
@@ -526,7 +622,7 @@ export class RBAC {
      * @returns boolean indicating if the role has wildcard permission
      */
     hasWildcardPermission(roleName: string, resource: Resource): boolean {
-        const permissions = this.getRolePermissions(roleName, resource);
+        const permissions = this.getAllPermissions(roleName, resource);
         return permissions.includes(WILDCARD_PERMISSION);
     }
 
@@ -534,7 +630,9 @@ export class RBAC {
      * Private method to parse a permission string into its components
      * Format: 'action:ownership|result' or just 'action'
      */
-    private parsePermission(permission: string): {
+    private parsePermission<P extends string>(
+        permission: P,
+    ): {
         action: string;
         ownership?: string;
         comparisonResult?: string;
@@ -566,6 +664,7 @@ export class RBAC {
 
     /**
      * Private method to get permissions for a role on a specific resource
+     * Gets only direct permissions, not inherited ones
      */
     private getRolePermissions(
         roleName: string,
@@ -585,5 +684,49 @@ export class RBAC {
 
         // Get permissions for the specific resource
         return roleDefinition.permissions[resource] || [];
+    }
+
+    /**
+     * Checks if a role inherits from another role
+     * @param roleName The role to check
+     * @param parentRoleName The potential parent role
+     * @param visitedRoles Set of roles already visited (to prevent circular inheritance)
+     * @returns boolean indicating if roleName inherits from parentRoleName
+     */
+    inheritsFrom(
+        roleName: string,
+        parentRoleName: string,
+        visitedRoles: Set<string> = new Set(),
+    ): boolean {
+        // First check if both roles exist
+        if (!this.rolesConfig[roleName] || !this.rolesConfig[parentRoleName]) {
+            return false;
+        }
+
+        // Base cases
+        if (roleName === parentRoleName) {
+            return true; // A role inherits from itself
+        }
+
+        // Check for circular inheritance
+        if (visitedRoles.has(roleName)) {
+            return false;
+        }
+
+        // Mark this role as visited
+        visitedRoles.add(roleName);
+
+        // Get direct parents
+        const directParents = this.getParentRoles(roleName);
+
+        // Check if parentRoleName is a direct parent
+        if (directParents.includes(parentRoleName)) {
+            return true;
+        }
+
+        // Recursively check each parent
+        return directParents.some((parent) =>
+            this.inheritsFrom(parent, parentRoleName, visitedRoles),
+        );
     }
 }

@@ -11,6 +11,7 @@ Gatesmith is a lightweight, flexible permission system that combines the simplic
 - Class-based API with intuitive methods
 - Define hierarchical permissions by role and resource
 - Support for ownership-based access control (`create:own`, `update:own`, etc.)
+- **Role inheritance** to create permission hierarchies and reduce duplication
 - Dynamic permission checking with ID comparison
 - Flexible permission structure that works with any action types
 - User-friendly role display names for UI integration
@@ -20,6 +21,7 @@ Gatesmith is a lightweight, flexible permission system that combines the simplic
 - Permission explanation mechanism to understand why access was granted or denied
 - Runtime role configuration updates to modify permissions without restarting
 - Simplified ownership assumption: 'action:own' automatically passes unless explicitly set to false
+- Circular inheritance detection to prevent infinite loops
 
 ## Installation
 
@@ -46,6 +48,7 @@ const rbac = new RBAC({
         permissions: {
             posts: ["create:own", "read", "update:own", "delete:own"],
         },
+        inherits: ["user"], // Editor inherits from user role
     },
     user: {
         name: "Regular User",
@@ -106,8 +109,24 @@ npm run dev
 ```typescript
 import { RBAC, RolesConfig, WILDCARD_PERMISSION } from "gatesmith";
 
-// Define role-based permissions with display names
+// Define role-based permissions with display names and inheritance
 const roles: RolesConfig = {
+    user: {
+        name: "Regular User",
+        permissions: {
+            posts: ["create:own", "update:own", "read", "delete:own"],
+            "group-chat": ["read", "update:group"],
+            reports: ["read:val"], // Custom validation
+        },
+    },
+    editor: {
+        name: "Content Editor",
+        permissions: {
+            posts: ["update"], // Can update any post, not just own
+            comments: ["moderate"],
+        },
+        inherits: ["user"], // Editor inherits all user permissions
+    },
     admin: {
         name: "Administrator",
         permissions: {
@@ -115,6 +134,7 @@ const roles: RolesConfig = {
             users: ["create", "update", "read", "delete"],
             reports: ["read", "generate", "export:val"], // Custom validation
         },
+        inherits: ["editor"], // Admin inherits all editor permissions
     },
     superadmin: {
         name: "Super Administrator",
@@ -124,23 +144,7 @@ const roles: RolesConfig = {
             // Specific permissions for other resources
             posts: ["create", "update", "read", "delete"],
         },
-    },
-    moderator: {
-        name: "Content Moderator",
-        permissions: {
-            // Wildcard for all comment actions
-            comments: [WILDCARD_PERMISSION],
-            // Limited permissions on posts
-            posts: ["read", "update"],
-        },
-    },
-    user: {
-        name: "Regular User",
-        permissions: {
-            posts: ["create:own", "update:own", "read", "delete:own"],
-            "group-chat": ["read", "update:group"],
-            reports: ["read:val"], // Custom validation
-        },
+        inherits: ["admin"], // Inherits all admin permissions
     },
 };
 
@@ -224,6 +228,74 @@ const canExportReports = () => {
 rbac.can("admin", val("export", canExportReports), "reports");
 ```
 
+### Role Inheritance
+
+```typescript
+// Define roles with inheritance
+const roles = {
+    base: {
+        permissions: {
+            posts: ["read"],
+            comments: ["read"],
+        },
+    },
+    member: {
+        permissions: {
+            posts: ["create:own"],
+        },
+        inherits: ["base"], // Inherits from base
+    },
+    editor: {
+        permissions: {
+            posts: ["update", "delete:own"],
+        },
+        inherits: ["member"], // Inherits from member
+    },
+    admin: {
+        permissions: {
+            settings: ["read", "update"],
+        },
+        inherits: ["editor"], // Inherits from editor
+    },
+};
+
+const rbac = new RBAC(roles);
+
+// Admin inherits all permissions down the chain
+rbac.can("admin", "read", "posts"); // true - inherited from base
+rbac.can("admin", "create:own", "posts"); // true - inherited from member
+rbac.can("admin", "update", "posts"); // true - inherited from editor
+rbac.can("admin", "read", "settings"); // true - direct permission
+
+// Check inheritance relationships
+rbac.inheritsFrom("admin", "base"); // true - indirect inheritance
+rbac.inheritsFrom("editor", "admin"); // false - wrong direction
+
+// Multiple inheritance is supported
+const rolesWithMultipleInheritance = {
+    ...roles,
+    moderator: {
+        permissions: {
+            comments: ["update", "delete"],
+        },
+        inherits: ["member"], // Inherits from member
+    },
+    seniorModerator: {
+        permissions: {
+            users: ["ban"],
+        },
+        inherits: ["moderator", "editor"], // Inherits from both roles
+    },
+};
+
+const rbacMultiple = new RBAC(rolesWithMultipleInheritance);
+
+// Senior moderator inherits from both paths
+rbacMultiple.can("seniorModerator", "read", "posts"); // true - from base via both paths
+rbacMultiple.can("seniorModerator", "update", "posts"); // true - from editor
+rbacMultiple.can("seniorModerator", "delete", "comments"); // true - from moderator
+```
+
 ### Wildcard Permissions
 
 ```typescript
@@ -267,6 +339,14 @@ rbac.getRoles(); // ["admin", "superadmin", "moderator", "editor", "user"]
 rbac.getName("admin"); // "Administrator"
 rbac.getName("superadmin"); // "Super Administrator"
 rbac.getName("user"); // "Regular User"
+
+// Get a role's parent roles (roles it inherits from)
+rbac.getParentRoles("editor"); // ["user"]
+rbac.getParentRoles("admin"); // ["editor"]
+
+// Check if a role inherits from another role
+rbac.inheritsFrom("admin", "user"); // true - indirect inheritance
+rbac.inheritsFrom("user", "admin"); // false - wrong direction
 
 // Display names for UI
 const availableRoles = rbac.getRoles();
@@ -369,12 +449,24 @@ rbac.updateRoles({
             logs: ["read", "download"],
         },
         description: "Technical developer with system access",
+        inherits: ["user"], // New role inherits from user
+    },
+});
+
+// Update inheritance relationships
+rbac.updateRoles({
+    moderator: {
+        permissions: {
+            comments: ["update", "delete"],
+        },
+        inherits: ["member", "editor"], // Add editor to inheritance list
     },
 });
 
 // Check if the new role exists and has permissions
 rbac.getRoles().includes("developer"); // true
 rbac.can("developer", "debug", "system"); // true
+rbac.can("developer", "read", "posts"); // true - inherited from user
 rbac.getName("developer"); // "Developer"
 ```
 
